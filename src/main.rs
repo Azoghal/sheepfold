@@ -1,50 +1,51 @@
-use bevy::{DefaultPlugins, app::{App, Plugin, Startup, Update}, ecs::{component::Component, query::With, resource::Resource, schedule::IntoScheduleConfigs, system::{Commands, Query, Res, ResMut}}, time::{Time, Timer, TimerMode}};
+use std::f64::consts::PI;
+
+use bevy::{DefaultPlugins, app::{App, Plugin, Startup, Update}, ecs::{component::Component, query::With, resource::Resource, system::{Commands, Query, Res, ResMut}}, time::{Time, Timer, TimerMode}};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(HelloPlugin)
+        .add_plugins(SolarSystemPlugin)
         .run();
 }
 
-fn add_people(mut commands: Commands) {
-    commands.spawn((Person, Name("Bob Smith".to_string())));
-    commands.spawn((Person, Name("Bill Smith".to_string())));
-    commands.spawn((Person, Name("Barnaby Smith".to_string())));
+fn add_planets(mut commands: Commands) {
+    commands.spawn((CelestialBody, Name("Chesterton".to_string()), Orbit(400000.0), PolarPosition(0.0)));
+    commands.spawn((CelestialBody, Name("Abbey".to_string()), Orbit(600000.0), PolarPosition(0.5*PI)));
+    commands.spawn((CelestialBody, Name("Petersfield".to_string()), Orbit(800000.0), PolarPosition(1.5*PI)));
 }
 
-fn greet_people(time: Res<Time>, mut timer: ResMut<GreetTimer>, query: Query<&Name, With<Person>>) {
+fn move_celestial_body(time: Res<Time>, mut timer: ResMut<OrbitTimer>, mut query: Query<(&Name, &mut PolarPosition), With<CelestialBody>>) {
     if timer.0.tick(time.delta()).just_finished() {
-        for name in &query {
-            println!("hello {}!", name.0);
-        }
-    }
-}
-
-fn update_people(mut query: Query<&mut Name, With<Person>>) {
-    for mut name in &mut query {
-        if name.0 == "Bob Smith" {
-            name.0 = "Bob John".to_string();
-            break; // We don't need to change any other names.
+        for (name, mut polar_position) in query.iter_mut() {
+            polar_position.0 += 0.1;
+            println!("Planet {} is now at {}/{} of its orbit.", name.0, polar_position.0, 2.0*PI);
         }
     }
 }
 
 #[derive(Resource)]
-struct GreetTimer(Timer);
+struct OrbitTimer(Timer);
 
 #[derive(Component)]
-struct Person;
+struct CelestialBody;
 
 #[derive(Component)]
 struct Name(String);
 
-pub struct HelloPlugin;
+// Orbit is oversimplified for now, always a circle.
+#[derive(Component)]
+struct Orbit(f64);
 
-impl Plugin for HelloPlugin {
+#[derive(Component)]
+struct PolarPosition(f64);
+
+pub struct SolarSystemPlugin;
+
+impl Plugin for SolarSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(GreetTimer(Timer::from_seconds(2.0, TimerMode::Repeating)));
-        app.add_systems(Startup, add_people);
-        app.add_systems(Update,  (update_people, greet_people).chain());
+        app.insert_resource(OrbitTimer(Timer::from_seconds(2.0, TimerMode::Repeating)));
+        app.add_systems(Startup, add_planets);
+        app.add_systems(Update,  move_celestial_body);
     }
 }
