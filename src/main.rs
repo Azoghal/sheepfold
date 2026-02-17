@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use bevy::{DefaultPlugins, app::{App, Plugin, Startup, Update}, ecs::{component::Component, query::With, resource::Resource, system::{Commands, Query, Res, ResMut}}, time::{Time, Timer, TimerMode}};
+use bevy::{DefaultPlugins, app::{App, Plugin, Startup, Update}, ecs::{component::Component, query::With, resource::Resource, system::{Commands, Query, Res, ResMut}}, input::{ButtonInput, keyboard::{Key, KeyCode}}, time::{Time, Timer, TimerMode}};
 
 fn main() {
     App::new()
@@ -22,6 +22,24 @@ fn move_celestial_body(time: Res<Time>, mut timer: ResMut<OrbitTimer>, mut query
             polar_position.0 += 1.0/orbit.0;
             println!("Planet {} is now at {}/{} of its orbit.", name.0, polar_position.0, 2.0*PI);
         }
+    }
+}
+
+fn keyboard_input_system(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    key_input: Res<ButtonInput<Key>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Period) {
+        println!("speed uppppp")
+    }
+
+    if keyboard_input.just_pressed(KeyCode::Comma) {
+        println!("slow downnnn")
+    }
+
+    let key = Key::Character("?".into());
+    if key_input.just_pressed(key.clone()) {
+        println!("show helpppp");
     }
 }
 
@@ -47,6 +65,6 @@ impl Plugin for SolarSystemPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(OrbitTimer(Timer::from_seconds(2.0, TimerMode::Repeating)));
         app.add_systems(Startup, add_planets);
-        app.add_systems(Update,  move_celestial_body);
+        app.add_systems(Update,  (move_celestial_body,  keyboard_input_system));
     }
 }
