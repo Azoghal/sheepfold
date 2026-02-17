@@ -1,11 +1,14 @@
 use std::f64::consts::PI;
 
-use bevy::{DefaultPlugins, app::{App, Plugin, Startup, Update}, ecs::{component::Component, query::With, resource::Resource, system::{Commands, Query, Res, ResMut}}, input::{ButtonInput, keyboard::{Key, KeyCode}}, time::{Time, Timer, TimerMode}};
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::sprite_render::Wireframe2dConfig;
+use bevy::{DefaultPlugins, app::{App, Plugin, Startup, Update}, ecs::{component::Component, query::With, resource::Resource, schedule::IntoScheduleConfigs, system::{Commands, Query, Res, ResMut}}, input::{ButtonInput, common_conditions::input_just_pressed, keyboard::{Key, KeyCode}}, time::{Time, Timer, TimerMode}};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(SolarSystemPlugin)
+        .add_systems(Update,  toggle_wireframe.run_if(input_just_pressed(KeyCode::Space)))
         .run();
 }
 
@@ -41,6 +44,11 @@ fn keyboard_input_system(
     if key_input.just_pressed(key.clone()) {
         println!("show helpppp");
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn toggle_wireframe(mut wireframe_config: ResMut<Wireframe2dConfig>) {
+    wireframe_config.global = !wireframe_config.global;
 }
 
 #[derive(Resource)]
