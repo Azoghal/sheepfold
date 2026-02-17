@@ -15,10 +15,11 @@ fn add_planets(mut commands: Commands) {
     commands.spawn((CelestialBody, Name("Petersfield".to_string()), Orbit(800000.0), PolarPosition(1.5*PI)));
 }
 
-fn move_celestial_body(time: Res<Time>, mut timer: ResMut<OrbitTimer>, mut query: Query<(&Name, &mut PolarPosition), With<CelestialBody>>) {
+fn move_celestial_body(time: Res<Time>, mut timer: ResMut<OrbitTimer>, mut query: Query<(&Name, &mut PolarPosition, &Orbit), With<CelestialBody>>) {
     if timer.0.tick(time.delta()).just_finished() {
-        for (name, mut polar_position) in query.iter_mut() {
-            polar_position.0 += 0.1;
+        for (name, mut polar_position, orbit) in query.iter_mut() {
+            // Noddy way to make big orbits go slower
+            polar_position.0 += 1.0/orbit.0;
             println!("Planet {} is now at {}/{} of its orbit.", name.0, polar_position.0, 2.0*PI);
         }
     }
