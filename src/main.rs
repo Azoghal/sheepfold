@@ -1,7 +1,7 @@
 use std::{f64::consts::PI, time::Duration};
 
 use bevy::{
-    DefaultPlugins, app::{App, Plugin, PostUpdate, Startup, Update}, asset::Assets, camera::{Camera, Camera2d, Viewport}, color::Color, ecs::{component::Component, query::With, resource::Resource, schedule::IntoScheduleConfigs, system::{Commands, Query, Res, ResMut, Single}}, input::{ButtonInput, keyboard::{Key, KeyCode}}, math::primitives::Circle, mesh::{Mesh, Mesh2d}, sprite_render::{ColorMaterial, MeshMaterial2d}, time::{Time, Timer, TimerMode}, transform::{TransformSystems, components::{GlobalTransform, Transform}}, ui::{Node, PositionType, px, widget::Text}, utils::default, window::Window
+    DefaultPlugins, app::{App, Plugin, PostUpdate, Startup, Update}, asset::Assets, camera::{Camera, Camera2d, Viewport}, color::Color, ecs::{component::Component, query::With, resource::Resource, schedule::IntoScheduleConfigs, system::{Commands, Query, Res, ResMut, Single}}, input::{ButtonInput, keyboard::{Key, KeyCode}}, math::primitives::Circle, mesh::{Mesh, Mesh2d}, sprite_render::{ColorMaterial, MeshMaterial2d}, time::{Time, Timer, TimerMode}, transform::{TransformSystems, components::{GlobalTransform, Transform}}, ui::{Display, Node, PositionType, px, widget::Text}, utils::default, window::Window
 };
 
 mod units;
@@ -37,6 +37,7 @@ fn setup_viewport(mut commands: Commands,window: Single<&Window>) {
 
 fn setup_menu(mut commands: Commands){
     commands.spawn((
+        HelpText,
         Text::new(
             "SPACE         : Pause\n\
             COMMA / PERIOD: Sim Speed\n\
@@ -106,10 +107,19 @@ fn timer_keyboard_controls_system(
 fn ui_keyboard_controls_system(
     // keyboard_input: Res<ButtonInput<KeyCode>>, // if you want a single clickable key on the keyboard
     key_input: Res<ButtonInput<Key>>,
+    help_text_query: Single<(&mut Node), With<HelpText>>
 ) {
     let key = Key::Character("?".into());
+
+    let mut help_node = help_text_query.into_inner();
+
     if key_input.just_pressed(key.clone()) {
-        println!("show helpppp");
+        if help_node.display == Display::None {
+            help_node.display = Display::Flex
+        }
+        else {
+            help_node.display = Display::None
+        }
     }
 }
 
@@ -161,6 +171,10 @@ fn new_orbit_timer() -> OrbitTimer{
 
 #[derive(Component)]
 struct TooltipText;
+
+
+#[derive(Component)]
+struct HelpText;
 
 #[derive(Component)]
 struct CelestialBody;
