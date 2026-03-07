@@ -1,12 +1,84 @@
 use std::{f64::consts::PI, time::Duration};
 
-use bevy::{DefaultPlugins, app::{App, Plugin, Startup, Update}, asset::Assets, camera::Camera2d, color::Color, ecs::{component::Component, query::With, resource::Resource, system::{Commands, Query, Res, ResMut}}, input::{ButtonInput, keyboard::{Key, KeyCode}}, math::primitives::{Circle, ToRing}, mesh::{Mesh, Mesh2d}, sprite_render::{ColorMaterial, MeshMaterial2d}, time::{Time, Timer, TimerMode}, transform::components::Transform};
+use bevy::{
+    DefaultPlugins, app::{App, Plugin, PostUpdate, Startup, Update}, asset::Assets, camera::{Camera, Camera2d, Viewport}, color::Color, ecs::{component::Component, query::With, resource::Resource, schedule::IntoScheduleConfigs, system::{Commands, Query, Res, ResMut, Single}}, input::{ButtonInput, keyboard::{Key, KeyCode}}, math::primitives::Circle, mesh::{Mesh, Mesh2d}, sprite_render::{ColorMaterial, MeshMaterial2d}, time::{Time, Timer, TimerMode}, transform::{TransformSystems, components::{GlobalTransform, Transform}}, ui::{Node, PositionType, px, widget::Text}, utils::default, window::Window
+};
+
+mod units;
+
+// Screen size
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(SolarSystemPlugin)
+        .add_systems(Startup, (setup_viewport, setup_menu))
+        .add_systems(PostUpdate, draw_tooltip.after(TransformSystems::Propagate))
         .run();
+}
+
+fn setup_viewport(mut commands: Commands,window: Single<&Window>) {
+    let window_size = window.resolution.physical_size().as_vec2();
+
+    commands.spawn((
+        Camera2d,
+        Camera {
+            viewport: Some(Viewport {
+                physical_position: (window_size * 0.0).as_uvec2(), // exact top left
+                physical_size: (window_size*1.0).as_uvec2(), // exact window size, full window viewport
+                ..default()
+            }), // we want this viewport to occupy the entire window.
+            clear_color: bevy::camera::ClearColorConfig::Custom(Color::BLACK), // space is black init
+            ..default()
+        },
+    ));
+    
+}
+
+fn setup_menu(mut commands: Commands){
+    commands.spawn((
+        Text::new(
+            "SPACE         : Pause\n\
+            COMMA / PERIOD: Sim Speed\n\
+            MINUS / EQUALS: Zoom in/out",
+        ),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: px(12),
+            right: px(12),
+            align_items: bevy::ui::AlignItems::End,
+            justify_content: bevy::ui::JustifyContent::End,
+            ..default()
+        },
+    ));
+
+    commands.spawn((
+        TooltipText,
+        Text::new(
+            "x,y",
+        ),
+        Node {
+            position_type: PositionType::Absolute,
+            
+            ..default()
+        }));
+}
+
+fn draw_tooltip(
+    camera_query: Single<(&Camera, &GlobalTransform)>, // can match on particular camera here
+    window: Single<&Window>,
+    tooltip_query: Single<(&mut Text, &mut Node), With<TooltipText>>,) {
+    let (camera, camera_transform) = *camera_query;
+    let (mut tooltip_text, mut tooltip_node) = tooltip_query.into_inner();
+
+    if let Some(cursor_position) = window.cursor_position()
+        && let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_position)
+    {
+        tooltip_text.0 = format!("{:.1}, {:.1}", world_pos.x, world_pos.y);
+
+        tooltip_node.left = px(cursor_position.x + 12.0);
+        tooltip_node.top = px(cursor_position.y + 12.0);
+    }
 }
 
 fn timer_keyboard_controls_system(
@@ -74,10 +146,6 @@ impl OrbitTimer {
             self.timer.pause();
         }
     }
-
-    // fn set_pause(&mut self, pause:bool){
-    //     self.paused = pause;
-    // }
 }
 
 fn new_orbit_timer() -> OrbitTimer{
@@ -90,6 +158,9 @@ fn new_orbit_timer() -> OrbitTimer{
         timer: Timer::from_seconds(times[current_interval], TimerMode::Repeating)
     }
 }
+
+#[derive(Component)]
+struct TooltipText;
 
 #[derive(Component)]
 struct CelestialBody;
@@ -108,19 +179,16 @@ pub struct SolarSystemPlugin;
 
 impl Plugin for SolarSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(new_orbit_timer());
-        app.add_systems(Startup, add_planets);
-        app.add_systems(Update,  (move_celestial_body,  timer_keyboard_controls_system, ui_keyboard_controls_system));
+        app.insert_resource(new_orbit_timer())
+        .add_systems(Startup, add_planets)
+        .add_systems(Update, (move_celestial_body, timer_keyboard_controls_system, ui_keyboard_controls_system));
     }
 }
 
 
 fn add_planets(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>) {
-
-    commands.spawn(Camera2d);
-
-    let colour = Color::hsl(144., 0.95, 0.7);
-    let shape = meshes.add(Circle::new(50.0).to_ring(5.));
+    let colour = Color::hsl(220., 0.90, 0.6);
+    let shape = meshes.add(Circle::new(50.0));
 
     commands.spawn((
         CelestialBody, 
