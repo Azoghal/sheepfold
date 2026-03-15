@@ -2,12 +2,16 @@ use std::{f64::consts::PI, time::Duration};
 
 use bevy::{
     DefaultPlugins,
-    app::{App, Plugin, PostUpdate, Startup, Update},
+    app::{App, FixedUpdate, Plugin, PostUpdate, Startup, Update},
     asset::Assets,
-    camera::{Camera, Camera2d, Viewport},
-    color::Color,
+    camera::{Camera, Camera2d, OrthographicProjection, Projection, ScalingMode, Viewport},
+    color::{
+        Color,
+        palettes::css::{SKY_BLUE, YELLOW},
+    },
     ecs::{
         component::Component,
+        entity::Entity,
         query::With,
         resource::Resource,
         schedule::IntoScheduleConfigs,
@@ -17,10 +21,13 @@ use bevy::{
         ButtonInput,
         keyboard::{Key, KeyCode},
     },
-    math::primitives::Circle,
+    math::{
+        ops::powf,
+        primitives::{Annulus, Circle},
+    },
     mesh::{Mesh, Mesh2d},
     sprite_render::{ColorMaterial, MeshMaterial2d},
-    time::{Time, Timer, TimerMode},
+    time::{Fixed, Time, Timer, TimerMode},
     transform::{
         TransformSystems,
         components::{GlobalTransform, Transform},
@@ -30,6 +37,8 @@ use bevy::{
     window::Window,
 };
 
+use crate::units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers};
+
 mod units;
 
 // Screen size
@@ -38,13 +47,23 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(SolarSystemPlugin)
-        .add_systems(Startup, (setup_viewport, setup_menu))
+        .add_systems(
+            Startup,
+            ((setup_viewport, default_viewport_scale).chain(), setup_menu),
+        )
+        .add_systems(FixedUpdate, camera_controls_system)
         .add_systems(PostUpdate, draw_tooltip.after(TransformSystems::Propagate))
         .run();
 }
 
 fn setup_viewport(mut commands: Commands, window: Single<&Window>) {
     let window_size = window.resolution.physical_size().as_vec2();
+
+    // let projection = Projection::Orthographic(OrthographicProjection {
+    //      scaling_mode: ScalingMode::WindowSize,
+    //      scale: (INNER_SOLAR_SYSTEM_RADIUS * 2.0),
+    //      ..OrthographicProjection::default_2d()
+    // });
 
     commands.spawn((
         Camera2d,
@@ -57,7 +76,18 @@ fn setup_viewport(mut commands: Commands, window: Single<&Window>) {
             clear_color: bevy::camera::ClearColorConfig::Custom(Color::BLACK), // space is black init
             ..default()
         },
+        // projection,
     ));
+}
+
+fn default_viewport_scale(camera_query: Single<&mut Projection>, window: Single<&Window>) {
+    let mut projection = camera_query.into_inner();
+    let window_size = window.resolution.physical_size().as_vec2();
+
+    // Camera zoom controls
+    if let Projection::Orthographic(projection2d) = &mut *projection {
+        projection2d.scale = (INNER_SOLAR_SYSTEM_RADIUS / window_size.x).into();
+    }
 }
 
 fn setup_menu(mut commands: Commands) {
@@ -146,6 +176,25 @@ fn ui_keyboard_controls_system(
     }
 }
 
+fn camera_controls_system(
+    camera_query: Single<&mut Projection>,
+    input: Res<ButtonInput<KeyCode>>,
+    time: Res<Time<Fixed>>,
+) {
+    let mut projection = camera_query.into_inner();
+
+    // Camera zoom controls
+    if let Projection::Orthographic(projection2d) = &mut *projection {
+        if input.pressed(KeyCode::Minus) {
+            projection2d.scale *= powf(4.0f32, time.delta_secs());
+        }
+
+        if input.pressed(KeyCode::Equal) {
+            projection2d.scale *= powf(0.25f32, time.delta_secs());
+        }
+    }
+}
+
 #[derive(Resource)]
 struct OrbitTimer {
     current_interval: usize,
@@ -208,10 +257,15 @@ struct Name(String);
 
 // Orbit is oversimplified for now, always a circle.
 #[derive(Component)]
-struct Orbit(f64);
+struct Orbit(Kilometers);
 
 #[derive(Component)]
-struct PolarPosition(f64);
+struct OrbitRing {
+    pub planet: Entity,
+}
+
+#[derive(Component)]
+struct PolarPosition(f32);
 
 pub struct SolarSystemPlugin;
 
@@ -235,30 +289,52 @@ fn add_planets(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let colour = Color::hsl(220., 0.90, 0.6);
-    let shape = meshes.add(Circle::new(50.0));
+    let abbey_colour = Color::hsl(60.0, 0.75, 0.75);
+    let abbey_shape = meshes.add(Circle::new(Kilometers::from(695700.0).into()));
+
+    let chesterton_colour = Color::hsl(240.0, 0.75, 0.75);
+    let chesterton_shape = meshes.add(Circle::new(Kilometers::from(6371.0 * 100.0).into()));
 
     commands.spawn((
         CelestialBody,
-        Name("Chesterton".to_string()),
-        Orbit(400000.0),
-        PolarPosition(0.0),
-        Mesh2d(shape),
-        MeshMaterial2d(materials.add(colour)),
-        Transform::from_xyz(-500.0, -75.0, 0.0),
-    ));
-    commands.spawn((
-        CelestialBody,
         Name("Abbey".to_string()),
-        Orbit(600000.0),
-        PolarPosition(0.5 * PI),
+        Mesh2d(abbey_shape),
+        MeshMaterial2d(materials.add(abbey_colour)),
+        Transform::from_xyz(0.0, 0., 0.),
     ));
+
+    let chesterton_orbit_radius = ASTRONOMICAL_UNIT * 1.0;
+
+    let chesterton_id = commands
+        .spawn((
+            CelestialBody,
+            Name("Chesterton".to_string()),
+            Orbit(chesterton_orbit_radius),
+            PolarPosition(0.0),
+            Mesh2d(chesterton_shape),
+            MeshMaterial2d(materials.add(chesterton_colour)),
+            Transform::from_xyz(chesterton_orbit_radius.into(), 0., 0.),
+        ))
+        .id();
+
     commands.spawn((
-        CelestialBody,
-        Name("Petersfield".to_string()),
-        Orbit(800000.0),
-        PolarPosition(1.5 * PI),
+        OrbitRing {
+            planet: chesterton_id,
+        },
+        Mesh2d(meshes.add(Annulus::new(
+            (chesterton_orbit_radius - 100000.0).into(),
+            (chesterton_orbit_radius + 100000.0).into(),
+        ))),
+        MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.15))),
+        Transform::from_xyz(0., 0., -1.),
     ));
+
+    // commands.spawn((
+    //     CelestialBody,
+    //     Name("Petersfield".to_string()),
+    //     Orbit(800000.0),
+    //     PolarPosition(1.5 * PI),
+    // ));
 }
 
 fn move_celestial_body(
@@ -269,7 +345,7 @@ fn move_celestial_body(
     if timer.timer.tick(time.delta()).just_finished() {
         for (name, mut polar_position, orbit) in query.iter_mut() {
             // Noddy way to make big orbits go slower
-            polar_position.0 += 1.0 / orbit.0;
+            polar_position.0 += 1.0 / f32::from(orbit.0);
             println!(
                 "Planet {} is now at {}/{} of its orbit.",
                 name.0,
