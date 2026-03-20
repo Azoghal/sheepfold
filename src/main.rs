@@ -319,24 +319,21 @@ fn add_planets(
         MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.15))),
         Transform::from_xyz(0., 0., -1.),
     ));
-
-    // commands.spawn((
-    //     CelestialBody,
-    //     Name("Petersfield".to_string()),
-    //     Orbit(800000.0),
-    //     PolarPosition(1.5 * PI),
-    // ));
 }
 
 fn move_celestial_body(
     time: Res<Time>,
     mut timer: ResMut<OrbitTimer>,
-    mut query: Query<(&Name, &mut PolarPosition, &Orbit), With<CelestialBody>>,
+    mut query: Query<(&Name, &mut PolarPosition, &Orbit, &mut Transform), With<CelestialBody>>,
 ) {
     if timer.timer.tick(time.delta()).just_finished() {
-        for (name, mut polar_position, orbit) in query.iter_mut() {
+        for (name, mut polar_position, orbit, mut transform) in query.iter_mut() {
             // Noddy way to make big orbits go slower
-            polar_position.0 += 1.0 / f32::from(orbit.0);
+            polar_position.0 += 0.01; // 1.0 / f32::from(orbit.0);
+            let x = (orbit.0 * polar_position.0.cos()).into();
+            let y = (orbit.0 * polar_position.0.sin()).into();
+            transform.translation.x = x;
+            transform.translation.y = y;
             println!(
                 "Planet {} is now at {}/{} of its orbit.",
                 name.0,
