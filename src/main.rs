@@ -4,11 +4,8 @@ use bevy::{
     DefaultPlugins,
     app::{App, FixedUpdate, Plugin, PostUpdate, Startup, Update},
     asset::Assets,
-    camera::{Camera, Camera2d, OrthographicProjection, Projection, ScalingMode, Viewport},
-    color::{
-        Color,
-        palettes::css::{SKY_BLUE, YELLOW},
-    },
+    camera::{Camera, Camera2d, Projection, Viewport},
+    color::Color,
     ecs::{
         component::Component,
         entity::Entity,
@@ -58,12 +55,6 @@ fn main() {
 
 fn setup_viewport(mut commands: Commands, window: Single<&Window>) {
     let window_size = window.resolution.physical_size().as_vec2();
-
-    // let projection = Projection::Orthographic(OrthographicProjection {
-    //      scaling_mode: ScalingMode::WindowSize,
-    //      scale: (INNER_SOLAR_SYSTEM_RADIUS * 2.0),
-    //      ..OrthographicProjection::default_2d()
-    // });
 
     commands.spawn((
         Camera2d,
@@ -236,11 +227,11 @@ fn new_orbit_timer() -> OrbitTimer {
     let times = [0.05, 0.1, 0.25, 0.5, 1.0, 2.0]; // in seconds
     let current_interval = times.len() - 1;
 
-    return OrbitTimer {
+    OrbitTimer {
         current_interval,
         times,
         timer: Timer::from_seconds(times[current_interval], TimerMode::Repeating),
-    };
+    }
 }
 
 #[derive(Component)]
