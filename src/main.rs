@@ -1,4 +1,4 @@
-use std::{f32::consts::TAU, time::Duration};
+use std::f32::consts::TAU;
 
 use bevy::{
     DefaultPlugins,
@@ -192,7 +192,7 @@ fn camera_controls_system(
 #[derive(Resource)]
 struct OrbitRunner {
     current_interval: usize,
-    timesteps: [f32; 4], // time to pass per tick increasing in with index
+    timesteps: [f32; 5], // time to pass per tick increasing in with index
     paused: bool,
     timestep: f32,
 }
@@ -225,7 +225,7 @@ impl OrbitRunner {
 }
 
 fn new_orbit_timer() -> OrbitRunner {
-    let timesteps = [1., 60., 3600., 86400.]; // 1 sec, 1 minute, 1 hour, 1 day in seconds
+    let timesteps = [1., 60., 3600., 86400., 604800.]; // 1 sec, 1 minute, 1 hour, 1 day in seconds
     let current_interval = 0;
 
     OrbitRunner {
@@ -346,97 +346,83 @@ fn add_star(
     ));
 }
 
+struct PlanetSpec {
+    name: String,
+    colour: Color,
+    radius: Kilometers,
+    orbit_radius: Kilometers,
+    orbit_period: f32, // seconds
+}
+
 fn add_planets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let shamhat_name = "Shamhat";
-    let shamhat_colour = Color::hsl(0.0, 0.85, 0.75);
-    let shamhat_planet_radius = Kilometers::from(3500.0 * PLANET_DRAW_SCALE);
-    let shamhat_orbit_radius = ASTRONOMICAL_UNIT * 0.4;
-    let shamhat_orbit_period = 30. * 24. * 60. * 60.; // seconds
+    let shamhat = PlanetSpec {
+        name: "Shamhat".to_string(),
+        colour: Color::hsl(0.0, 0.85, 0.75),
+        radius: Kilometers::from(3500.0 * PLANET_DRAW_SCALE),
+        orbit_radius: ASTRONOMICAL_UNIT * 0.4,
+        orbit_period: 30. * 24. * 60. * 60., // seconds
+    };
 
-    let enkidu_name = "Enkidu";
-    let enkidu_colour = Color::hsl(240.0, 0.75, 0.75);
-    let enkidu_planet_radius = Kilometers::from(6371.0 * PLANET_DRAW_SCALE);
-    let enkidu_orbit_radius = ASTRONOMICAL_UNIT * 1.0;
-    let enkidu_orbit_period = 365. * 24. * 60. * 60.; // seconds
+    let enkidu = PlanetSpec {
+        name: "Enkidu".to_string(),
+        colour: Color::hsl(240.0, 0.75, 0.75),
+        radius: Kilometers::from(6371.0 * PLANET_DRAW_SCALE),
+        orbit_radius: ASTRONOMICAL_UNIT * 1.0,
+        orbit_period: 365. * 24. * 60. * 60., // seconds
+    };
 
-    let humbaba_name = "Humbaba";
-    let humbaba_colour = Color::hsl(120.0, 0.75, 0.75);
-    let humbaba_planet_radius = Kilometers::from(4000.0 * PLANET_DRAW_SCALE);
-    let humbaba_orbit_radius = ASTRONOMICAL_UNIT * 1.7;
-    let humbaba_orbit_period = 710. * 24. * 60. * 60.; // seconds
+    let humbaba = PlanetSpec {
+        name: "Humbaba".to_string(),
+        colour: Color::hsl(120.0, 0.75, 0.75),
+        radius: Kilometers::from(4000.0 * PLANET_DRAW_SCALE),
+        orbit_radius: ASTRONOMICAL_UNIT * 1.7,
+        orbit_period: 710. * 24. * 60. * 60., // seconds
+    };
 
-    spawn_planet(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        shamhat_name,
-        shamhat_planet_radius,
-        shamhat_orbit_radius,
-        shamhat_orbit_period,
-        shamhat_colour,
-    );
-
-    spawn_planet(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        enkidu_name,
-        enkidu_planet_radius,
-        enkidu_orbit_radius,
-        enkidu_orbit_period,
-        enkidu_colour,
-    );
-
-    spawn_planet(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        humbaba_name,
-        humbaba_planet_radius,
-        humbaba_orbit_radius,
-        humbaba_orbit_period,
-        humbaba_colour,
-    );
+    for planet in [shamhat, enkidu, humbaba] {
+        spawn_planet(&mut commands, &mut meshes, &mut materials, planet);
+    }
 }
 
 fn spawn_planet(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
-    name: &str,
-    planet_radius: Kilometers,
-    orbit_radius: Kilometers,
-    orbit_period: f32,
-    colour: Color,
+    planet: PlanetSpec,
+    // name: &str,
+    // planet_radius: Kilometers,
+    // orbit_radius: Kilometers,
+    // orbit_period: f32,
+    // colour: Color,
 ) {
-    let planet_shape = meshes.add(Circle::new(planet_radius.into()));
+    let planet_shape = meshes.add(Circle::new(planet.radius.into()));
 
-    let polar_speed = TAU / orbit_period;
-    println!("{0}:{1}", name, polar_speed);
+    let polar_speed = TAU / planet.orbit_period;
+    println!("{0}:{1}", planet.name, polar_speed);
 
     // Spawn the actual planet
     let planet_id = commands
         .spawn((
             CelestialBody,
-            Name(name.to_string()),
+            Name(planet.name.to_string()),
             Orbiter {
-                radius: orbit_radius,
+                radius: planet.orbit_radius,
                 polar_speed,
                 polar_position: 0.0,
             },
             Mesh2d(planet_shape),
-            MeshMaterial2d(materials.add(colour)),
-            Transform::from_xyz(orbit_radius.into(), 0., 0.),
+            MeshMaterial2d(materials.add(planet.colour)),
+            Transform::from_xyz(planet.orbit_radius.into(), 0., 0.),
         ))
         .id();
 
     // Spawn a label for the planet name
     commands.spawn((
-        Text::new(name.to_string()),
+        Text::new(planet.name.to_string()),
         TextFont {
             font_size: 9.0,
             ..default()
@@ -453,7 +439,7 @@ fn spawn_planet(
         OrbitRing { planet: planet_id },
         Mesh2d(meshes.add({
             // This is an approximation; Ellipse does not implement Inset as concentric ellipses do not have parallel curves
-            let outer = Ellipse::new(orbit_radius.into(), orbit_radius.into());
+            let outer = Ellipse::new(planet.orbit_radius.into(), planet.orbit_radius.into());
             let mut inner = outer;
             inner.half_size -= Vec2::splat(ORBIT_LINE_THICKNESS);
             Ring::new(outer, inner)
