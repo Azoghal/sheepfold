@@ -25,7 +25,7 @@ use bevy::{
     },
     mesh::{Mesh, Mesh2d},
     sprite_render::{ColorMaterial, MeshMaterial2d},
-    time::{Fixed, Time, Timer, TimerMode},
+    time::{Fixed, Time},
     transform::{
         TransformSystems,
         components::{GlobalTransform, Transform},
@@ -130,10 +130,10 @@ fn draw_mouse_tooltip(
     }
 }
 
-fn timer_keyboard_controls_system(
+fn orbit_runner_keyboard_controls_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     // key_input: Res<ButtonInput<Key>>, // if you want a key that appears in multiple locations
-    mut timer: ResMut<OrbitTimer>,
+    mut timer: ResMut<OrbitRunner>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Space) {
         println!("<INP> Toggle Pause");
@@ -189,50 +189,49 @@ fn camera_controls_system(
 }
 
 #[derive(Resource)]
-struct OrbitTimer {
+struct OrbitRunner {
     current_interval: usize,
-    times: [f32; 5], // tick times increasing in duration with index
-    timer: Timer,
+    timesteps: [f32; 4], // time to pass per tick increasing in with index
+    paused: bool,
+    timestep: f32,
 }
 
-impl OrbitTimer {
-    fn slow_down(&mut self) {
-        if self.current_interval == self.times.len() - 1 {
+impl OrbitRunner {
+    fn speed_up(&mut self) {
+        if self.current_interval == self.timesteps.len() - 1 {
             return;
         }
 
         self.current_interval += 1;
-        self.timer
-            .set_duration(Duration::from_secs_f32(self.times[self.current_interval]));
+        self.timestep = self.timesteps[self.current_interval];
+        println!("timestep: {0}s", self.timestep);
     }
 
-    fn speed_up(&mut self) {
+    fn slow_down(&mut self) {
         if self.current_interval == 0 {
             return;
         }
 
         self.current_interval -= 1;
-        self.timer
-            .set_duration(Duration::from_secs_f32(self.times[self.current_interval]));
+        self.timestep = self.timesteps[self.current_interval];
+        println!("timestep: {0}s", self.timestep);
     }
 
     fn toggle_pause(&mut self) {
-        if self.timer.is_paused() {
-            self.timer.unpause();
-        } else {
-            self.timer.pause();
-        }
+        self.paused = !self.paused;
+        println!("paused: {0}", self.paused);
     }
 }
 
-fn new_orbit_timer() -> OrbitTimer {
-    let times = [0.0005, 0.01, 0.05, 0.1, 0.25]; // in seconds
-    let current_interval = times.len() - 1;
+fn new_orbit_timer() -> OrbitRunner {
+    let timesteps = [1., 60., 3600., 86400.]; // 1 sec, 1 minute, 1 hour, 1 day in seconds
+    let current_interval = 0;
 
-    OrbitTimer {
+    OrbitRunner {
         current_interval,
-        times,
-        timer: Timer::from_seconds(times[current_interval], TimerMode::Repeating),
+        timesteps,
+        paused: false,
+        timestep: timesteps[current_interval],
     }
 }
 
@@ -278,12 +277,12 @@ impl Plugin for SolarSystemPlugin {
             .add_systems(
                 Update,
                 (
-                    move_celestial_body,
-                    timer_keyboard_controls_system,
+                    orbit_runner_keyboard_controls_system,
                     ui_keyboard_controls_system,
                     update_screen_labels,
                 ),
-            );
+            )
+            .add_systems(FixedUpdate, move_celestial_body);
     }
 }
 
@@ -351,16 +350,30 @@ fn add_planets(
     let shamhat_colour = Color::hsl(0.0, 0.85, 0.75);
     let shamhat_planet_radius = Kilometers::from(3500.0 * PLANET_DRAW_SCALE);
     let shamhat_orbit_radius = ASTRONOMICAL_UNIT * 0.7;
+    let shamhat_orbit_period = 30. * 24. * 60. * 60.; // seconds
 
     let enkidu_name = "Enkidu";
     let enkidu_colour = Color::hsl(240.0, 0.75, 0.75);
     let enkidu_planet_radius = Kilometers::from(6371.0 * PLANET_DRAW_SCALE);
     let enkidu_orbit_radius = ASTRONOMICAL_UNIT * 1.0;
+    let enkidu_orbit_period = 365. * 24. * 60. * 60.; // seconds
 
     let humbaba_name = "Humbaba";
     let humbaba_colour = Color::hsl(120.0, 0.75, 0.75);
     let humbaba_planet_radius = Kilometers::from(4000.0 * PLANET_DRAW_SCALE);
     let humbaba_orbit_radius = ASTRONOMICAL_UNIT * 1.7;
+    let humbaba_orbit_period = 710. * 24. * 60. * 60.; // seconds
+
+    spawn_planet(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        shamhat_name,
+        shamhat_planet_radius,
+        shamhat_orbit_radius,
+        shamhat_orbit_period,
+        shamhat_colour,
+    );
 
     spawn_planet(
         &mut commands,
@@ -369,6 +382,7 @@ fn add_planets(
         enkidu_name,
         enkidu_planet_radius,
         enkidu_orbit_radius,
+        enkidu_orbit_period,
         enkidu_colour,
     );
 
@@ -379,17 +393,8 @@ fn add_planets(
         humbaba_name,
         humbaba_planet_radius,
         humbaba_orbit_radius,
+        humbaba_orbit_period,
         humbaba_colour,
-    );
-
-    spawn_planet(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        shamhat_name,
-        shamhat_planet_radius,
-        shamhat_orbit_radius,
-        shamhat_colour,
     );
 }
 
@@ -400,9 +405,13 @@ fn spawn_planet(
     name: &str,
     planet_radius: Kilometers,
     orbit_radius: Kilometers,
+    orbit_period: f32,
     colour: Color,
 ) {
     let planet_shape = meshes.add(Circle::new(planet_radius.into()));
+
+    let polar_speed = TAU / orbit_period;
+    println!("{0}:{1}", name, polar_speed);
 
     // Spawn the actual planet
     let planet_id = commands
@@ -411,8 +420,8 @@ fn spawn_planet(
             Name(name.to_string()),
             Orbiter {
                 radius: orbit_radius,
-                polar_speed: 0.0005, // TODO calculate these things
-                polar_position: 1.0,
+                polar_speed,
+                polar_position: 0.0,
             },
             Mesh2d(planet_shape),
             MeshMaterial2d(materials.add(colour)),
@@ -447,12 +456,14 @@ fn spawn_planet(
 
 fn move_celestial_body(
     time: Res<Time>,
-    mut timer: ResMut<OrbitTimer>,
+    orbit_runner: Res<OrbitRunner>,
     mut query: Query<(&mut Orbiter, &mut Transform), With<CelestialBody>>,
 ) {
-    if timer.timer.tick(time.delta()).just_finished() {
+    let simulated_time_delta_secs = time.delta_secs() * orbit_runner.timestep;
+
+    if !orbit_runner.paused {
         for (mut orbiter, mut transform) in query.iter_mut() {
-            orbiter.polar_position += orbiter.polar_speed;
+            orbiter.polar_position += orbiter.polar_speed * simulated_time_delta_secs;
             if orbiter.polar_position > TAU {
                 orbiter.polar_position %= TAU
             }
