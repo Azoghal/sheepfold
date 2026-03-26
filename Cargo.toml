@@ -6,6 +6,7 @@ edition = "2024"
 # dynamic_linking feature enabled for dev work, but should be removed for release 
 [dependencies]
 bevy = { version = "0.18.0", features = ["dynamic_linking"] }
+bevy_egui = "0.39.1"
 
 [profile.dev]
 opt-level = 1

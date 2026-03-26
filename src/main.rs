@@ -1,4 +1,4 @@
-use std::f32::consts::TAU;
+use std::{f32::consts::TAU, fmt::Error};
 
 use bevy::{
     DefaultPlugins,
@@ -9,7 +9,7 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
-        query::With,
+        query::{QuerySingleError, With},
         resource::Resource,
         schedule::IntoScheduleConfigs,
         system::{Commands, Query, Res, ResMut, Single},
@@ -36,6 +36,8 @@ use bevy::{
     window::Window,
 };
 
+use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
+
 use crate::units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers};
 
 mod units;
@@ -43,12 +45,14 @@ mod units;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(EguiPlugin::default())
         .add_plugins(SolarSystemPlugin)
         .add_systems(
             Startup,
             ((setup_viewport, default_viewport_scale).chain(), setup_menu),
         )
         .add_systems(FixedUpdate, camera_controls_system)
+        .add_systems(EguiPrimaryContextPass, ui_example_system)
         .add_systems(
             PostUpdate,
             draw_mouse_tooltip.after(TransformSystems::Propagate),
@@ -81,6 +85,19 @@ fn default_viewport_scale(camera_query: Single<&mut Projection>, window: Single<
     // Camera zoom controls
     if let Projection::Orthographic(projection2d) = &mut *projection {
         projection2d.scale = (INNER_SOLAR_SYSTEM_RADIUS / window_size.x).into();
+    }
+}
+
+fn ui_example_system(mut contexts: EguiContexts) {
+    match contexts.ctx_mut() {
+        Ok(context) => {
+            egui::Window::new("Hello").show(context, |ui| {
+                ui.label("world");
+            });
+        }
+        Err(e) => {
+            println!("oh noo")
+        }
     }
 }
 
