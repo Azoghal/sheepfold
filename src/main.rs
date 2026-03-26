@@ -19,8 +19,9 @@ use bevy::{
         keyboard::{Key, KeyCode},
     },
     math::{
+        Vec2,
         ops::powf,
-        primitives::{Annulus, Circle},
+        primitives::{Circle, Ellipse, Ring},
     },
     mesh::{Mesh, Mesh2d},
     sprite_render::{ColorMaterial, MeshMaterial2d},
@@ -37,8 +38,6 @@ use bevy::{
 use crate::units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers};
 
 mod units;
-
-// Screen size
 
 fn main() {
     App::new()
@@ -270,6 +269,7 @@ struct OrbitRing {
 pub struct SolarSystemPlugin;
 
 const PLANET_DRAW_SCALE: f32 = 100.0;
+const ORBIT_LINE_THICKNESS: f32 = 100_000.0;
 
 impl Plugin for SolarSystemPlugin {
     fn build(&self, app: &mut App) {
@@ -287,21 +287,6 @@ impl Plugin for SolarSystemPlugin {
     }
 }
 
-// fn draw_celestial_body_names(
-//     camera_query: Single<(&Camera, &GlobalTransform)>,
-//     mut cb_query: Query<(&Transform, &mut Node), With<CelestialBody>>,
-// ) {
-//     let (camera, camera_transform) = *camera_query;
-//     for (cb_transform, mut node) in cb_query.iter_mut() {
-//         if let Ok(screen_position) =
-//             camera.world_to_viewport(camera_transform, cb_transform.translation)
-//         {
-//             node.left = px(screen_position.x);
-//             node.top = px(screen_position.y + 12.0);
-//         }
-//     }
-// }
-
 fn update_screen_labels(
     mut labels: Query<(&mut Node, &ComputedNode, &ScreenLabel)>,
     targets: Query<&GlobalTransform>,
@@ -310,7 +295,9 @@ fn update_screen_labels(
     let (camera, camera_transform) = *camera_query;
 
     for (mut screen_label_node, computed_node, label) in labels.iter_mut() {
-        let Ok(target_transform) = targets.get(label.target) else { continue };
+        let Ok(target_transform) = targets.get(label.target) else {
+            continue;
+        };
 
         let world_position = target_transform.translation();
         let half_size = computed_node.size() / 2.0;
@@ -334,13 +321,15 @@ fn add_star(
 
     let name = "Enlil";
 
-    let enlil_id = commands.spawn((
-        CelestialBody,
-        Name(name.to_string()),
-        Mesh2d(enlil_shape),
-        MeshMaterial2d(materials.add(enlil_colour)),
-        Transform::from_xyz(0.0, 0., 0.),
-    )).id();
+    let enlil_id = commands
+        .spawn((
+            CelestialBody,
+            Name(name.to_string()),
+            Mesh2d(enlil_shape),
+            MeshMaterial2d(materials.add(enlil_colour)),
+            Transform::from_xyz(0.0, 0., 0.),
+        ))
+        .id();
 
     commands.spawn((
         Text::new(name.to_string()),
@@ -349,9 +338,7 @@ fn add_star(
             align_items: bevy::ui::AlignItems::Center,
             ..default()
         },
-        ScreenLabel {
-            target: enlil_id,
-        }
+        ScreenLabel { target: enlil_id },
     ));
 }
 
@@ -440,18 +427,19 @@ fn spawn_planet(
             position_type: PositionType::Absolute,
             ..default()
         },
-        ScreenLabel {
-            target: planet_id,
-        }
+        ScreenLabel { target: planet_id },
     ));
 
     // Spawn an orbit ring to show the orbit path
     commands.spawn((
         OrbitRing { planet: planet_id },
-        Mesh2d(meshes.add(Annulus::new(
-            (orbit_radius - 100000.0).into(),
-            (orbit_radius + 100000.0).into(),
-        ))),
+        Mesh2d(meshes.add({
+            // This is an approximation; Ellipse does not implement Inset as concentric ellipses do not have parallel curves
+            let outer = Ellipse::new(orbit_radius.into(), orbit_radius.into());
+            let mut inner = outer;
+            inner.half_size -= Vec2::splat(ORBIT_LINE_THICKNESS);
+            Ring::new(outer, inner)
+        })),
         MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.15))),
         Transform::from_xyz(0., 0., -1.),
     ));
