@@ -1,4 +1,4 @@
-use std::{f32::consts::TAU, fmt::Error};
+use std::f32::consts::TAU;
 
 use bevy::{
     DefaultPlugins,
@@ -9,15 +9,12 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
-        query::{QuerySingleError, With},
+        query::With,
         resource::Resource,
         schedule::IntoScheduleConfigs,
         system::{Commands, Query, Res, ResMut, Single},
     },
-    input::{
-        ButtonInput,
-        keyboard::{Key, KeyCode},
-    },
+    input::{ButtonInput, keyboard::KeyCode},
     math::{
         Vec2,
         ops::powf,
@@ -31,7 +28,7 @@ use bevy::{
         TransformSystems,
         components::{GlobalTransform, Transform},
     },
-    ui::{ComputedNode, Display, Node, PositionType, px, widget::Text},
+    ui::{ComputedNode, Node, PositionType, px, widget::Text},
     utils::default,
     window::Window,
 };
@@ -49,10 +46,13 @@ fn main() {
         .add_plugins(SolarSystemPlugin)
         .add_systems(
             Startup,
-            ((setup_viewport, default_viewport_scale).chain(), setup_menu),
+            (
+                (setup_viewport, default_viewport_scale).chain(),
+                setup_mouse_tooltip,
+            ),
         )
         .add_systems(FixedUpdate, camera_controls_system)
-        .add_systems(EguiPrimaryContextPass, ui_example_system)
+        .add_systems(EguiPrimaryContextPass, (time_control_ui, view_control_ui))
         .add_systems(
             PostUpdate,
             draw_mouse_tooltip.after(TransformSystems::Propagate),
@@ -88,37 +88,56 @@ fn default_viewport_scale(camera_query: Single<&mut Projection>, window: Single<
     }
 }
 
-fn ui_example_system(mut contexts: EguiContexts) {
+fn time_control_ui(mut contexts: EguiContexts, mut timer: ResMut<OrbitRunner>) {
     match contexts.ctx_mut() {
         Ok(context) => {
-            egui::Window::new("Hello").show(context, |ui| {
-                ui.label("world");
+            egui::Window::new("Time").show(context, |ui| {
+                if ui.button("Speed Up (.)").clicked() {
+                    timer.speed_up();
+                    println!("<UI Inp> Speed Up");
+                }
+                if ui.button("Slow Down (,)").clicked() {
+                    timer.slow_down();
+                    println!("<UI Inp> Slow Down");
+                }
+                if ui.button("Pause (space)").clicked() {
+                    timer.toggle_pause();
+                    println!("<UI Inp> Pause");
+                }
             });
         }
         Err(e) => {
-            println!("oh noo")
+            println!("Error finding egui context {0}", e)
         }
     }
 }
 
-fn setup_menu(mut commands: Commands) {
-    commands.spawn((
-        HelpText,
-        Text::new(
-            "SPACE         : Pause\n\
-            COMMA / PERIOD: Sim Speed\n\
-            MINUS / EQUALS: Zoom in/out",
-        ),
-        Node {
-            position_type: PositionType::Absolute,
-            bottom: px(12),
-            right: px(12),
-            align_items: bevy::ui::AlignItems::End,
-            justify_content: bevy::ui::JustifyContent::End,
-            ..default()
-        },
-    ));
+fn view_control_ui(mut contexts: EguiContexts, camera_query: Single<&mut Projection>) {
+    // TODO add a resource for the camera zoom stuff in same way as the timer
+    // will stop need to duplicate code
+    match contexts.ctx_mut() {
+        Ok(context) => {
+            let mut projection = camera_query.into_inner();
+            egui::Window::new("View").show(context, |ui| {
+                if ui.button("Zoom Out (-)").clicked()
+                    && let Projection::Orthographic(projection2d) = &mut *projection
+                {
+                    projection2d.scale *= 1.1;
+                }
+                if ui.button("Zoom In (=)").clicked()
+                    && let Projection::Orthographic(projection2d) = &mut *projection
+                {
+                    projection2d.scale *= 0.91;
+                }
+            });
+        }
+        Err(e) => {
+            println!("Error finding egui context {0}", e)
+        }
+    }
+}
 
+fn setup_mouse_tooltip(mut commands: Commands) {
     commands.spawn((
         TooltipText,
         Text::new("x,y"),
@@ -154,42 +173,24 @@ fn orbit_runner_keyboard_controls_system(
     mut timer: ResMut<OrbitRunner>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Space) {
-        println!("<INP> Toggle Pause");
+        println!("<Key INP> Toggle Pause");
         timer.toggle_pause();
     }
 
     if keyboard_input.just_pressed(KeyCode::Period) {
-        println!("<INP> Speed Up");
+        println!("<Key INP> Speed Up");
         timer.speed_up();
     }
 
     if keyboard_input.just_pressed(KeyCode::Comma) {
-        println!("<Inp> Slow Down");
+        println!("<Key Inp> Slow Down");
         timer.slow_down();
     }
 }
 
-fn ui_keyboard_controls_system(
-    // keyboard_input: Res<ButtonInput<KeyCode>>, // if you want a single clickable key on the keyboard
-    key_input: Res<ButtonInput<Key>>,
-    help_text_query: Single<&mut Node, With<HelpText>>,
-) {
-    let key = Key::Character("?".into());
-
-    let mut help_node = help_text_query.into_inner();
-
-    if key_input.just_pressed(key.clone()) {
-        if help_node.display == Display::None {
-            help_node.display = Display::Flex
-        } else {
-            help_node.display = Display::None
-        }
-    }
-}
-
 fn camera_controls_system(
-    camera_query: Single<&mut Projection>,
     input: Res<ButtonInput<KeyCode>>,
+    camera_query: Single<&mut Projection>,
     time: Res<Time<Fixed>>,
 ) {
     let mut projection = camera_query.into_inner();
@@ -257,9 +258,6 @@ fn new_orbit_timer() -> OrbitRunner {
 struct TooltipText;
 
 #[derive(Component)]
-struct HelpText;
-
-#[derive(Component)]
 struct CelestialBody;
 
 #[derive(Component)]
@@ -294,11 +292,7 @@ impl Plugin for SolarSystemPlugin {
             .add_systems(Startup, (add_star, add_planets).chain())
             .add_systems(
                 Update,
-                (
-                    orbit_runner_keyboard_controls_system,
-                    ui_keyboard_controls_system,
-                    update_screen_labels,
-                ),
+                (orbit_runner_keyboard_controls_system, update_screen_labels),
             )
             .add_systems(FixedUpdate, move_celestial_body);
     }
