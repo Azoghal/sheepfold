@@ -25,6 +25,7 @@ use bevy::{
     },
     mesh::{Mesh, Mesh2d},
     sprite_render::{ColorMaterial, MeshMaterial2d},
+    text::TextFont,
     time::{Fixed, Time},
     transform::{
         TransformSystems,
@@ -332,6 +333,10 @@ fn add_star(
 
     commands.spawn((
         Text::new(name.to_string()),
+        TextFont {
+            font_size: 14.0,
+            ..default()
+        },
         Node {
             position_type: PositionType::Absolute,
             align_items: bevy::ui::AlignItems::Center,
@@ -349,7 +354,7 @@ fn add_planets(
     let shamhat_name = "Shamhat";
     let shamhat_colour = Color::hsl(0.0, 0.85, 0.75);
     let shamhat_planet_radius = Kilometers::from(3500.0 * PLANET_DRAW_SCALE);
-    let shamhat_orbit_radius = ASTRONOMICAL_UNIT * 0.7;
+    let shamhat_orbit_radius = ASTRONOMICAL_UNIT * 0.4;
     let shamhat_orbit_period = 30. * 24. * 60. * 60.; // seconds
 
     let enkidu_name = "Enkidu";
@@ -432,6 +437,10 @@ fn spawn_planet(
     // Spawn a label for the planet name
     commands.spawn((
         Text::new(name.to_string()),
+        TextFont {
+            font_size: 9.0,
+            ..default()
+        },
         Node {
             position_type: PositionType::Absolute,
             ..default()
