@@ -1,4 +1,4 @@
-use std::f32::consts::TAU;
+use std::{f32::consts::TAU, fmt::Debug};
 
 use bevy::{
     DefaultPlugins,
@@ -28,7 +28,7 @@ use bevy::{
         TransformSystems,
         components::{GlobalTransform, Transform},
     },
-    ui::{ComputedNode, Node, PositionType, px, widget::Text},
+    ui::{ComputedNode, Display, Node, PositionType, px, widget::Text},
     utils::default,
     window::Window,
 };
@@ -52,7 +52,10 @@ fn main() {
             ),
         )
         .add_systems(FixedUpdate, camera_controls_system)
-        .add_systems(EguiPrimaryContextPass, (time_control_ui, view_control_ui))
+        .add_systems(
+            EguiPrimaryContextPass,
+            (time_control_ui, view_control_ui, debug_control_ui),
+        )
         .add_systems(
             PostUpdate,
             draw_mouse_tooltip.after(TransformSystems::Propagate),
@@ -143,13 +146,43 @@ fn view_control_ui(mut contexts: EguiContexts, camera_query: Single<&mut Project
     }
 }
 
+fn set_all_debug_ui_visible(visible: bool, query: &mut Query<&mut Node, With<DebugUI>>) {
+    let mut desired_display = Display::Flex;
+    if !visible {
+        desired_display = Display::None;
+    }
+    for mut node in query.iter_mut() {
+        node.display = desired_display;
+    }
+}
+
+fn debug_control_ui(mut contexts: EguiContexts, mut debug_ui_query: Query<&mut Node, With<DebugUI>>) {
+    match contexts.ctx_mut() {
+        Ok(context) => {
+            egui::Window::new("Debug").show(context, |ui| {
+                if ui.button("Show All").clicked() {
+                    // Toggle all debug things on
+                    set_all_debug_ui_visible(true, &mut debug_ui_query);
+                }
+                if ui.button("Hide All").clicked() {
+                    // Toggle all debug things off
+                    set_all_debug_ui_visible(false, &mut debug_ui_query);
+                }
+            });
+        }
+        Err(e) => {
+            println!("Error finding egui context {0}", e)
+        }
+    }
+}
+
 fn setup_mouse_tooltip(mut commands: Commands) {
     commands.spawn((
+        DebugUI,
         TooltipText,
         Text::new("x,y"),
         Node {
             position_type: PositionType::Absolute,
-
             ..default()
         },
     ));
@@ -259,6 +292,9 @@ fn new_orbit_timer() -> OrbitRunner {
         timestep: timesteps[current_interval],
     }
 }
+
+#[derive(Component)]
+struct DebugUI;
 
 #[derive(Component)]
 struct TooltipText;
