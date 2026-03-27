@@ -88,20 +88,26 @@ fn default_viewport_scale(camera_query: Single<&mut Projection>, window: Single<
     }
 }
 
-fn time_control_ui(mut contexts: EguiContexts, mut timer: ResMut<OrbitRunner>) {
+fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRunner>) {
     match contexts.ctx_mut() {
         Ok(context) => {
             egui::Window::new("Time").show(context, |ui| {
+                if orbit_runner.paused {
+                    ui.label("PAUSED");
+                } else {
+                    ui.small("Running");
+                }
+                ui.label(format!("Sim. Speed: {0}x", orbit_runner.timestep));
                 if ui.button("Speed Up (.)").clicked() {
-                    timer.speed_up();
+                    orbit_runner.speed_up();
                     println!("<UI Inp> Speed Up");
                 }
                 if ui.button("Slow Down (,)").clicked() {
-                    timer.slow_down();
+                    orbit_runner.slow_down();
                     println!("<UI Inp> Slow Down");
                 }
                 if ui.button("Pause (space)").clicked() {
-                    timer.toggle_pause();
+                    orbit_runner.toggle_pause();
                     println!("<UI Inp> Pause");
                 }
             });
