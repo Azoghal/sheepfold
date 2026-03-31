@@ -3,9 +3,9 @@ use std::{f32::consts::TAU, fmt::Debug};
 use bevy::{
     DefaultPlugins,
     app::{App, FixedUpdate, Plugin, PostUpdate, Startup, Update},
-    asset::Assets,
-    camera::{Camera, Camera2d, Projection, Viewport},
-    color::Color,
+    asset::{Assets, Handle},
+    camera::{Camera, Camera2d, OrthographicProjection, Projection, Viewport},
+    color::{Color, LinearRgba},
     ecs::{
         component::Component,
         entity::Entity,
@@ -18,10 +18,10 @@ use bevy::{
     math::{
         Vec2,
         ops::powf,
-        primitives::{Circle, Ellipse, Ring},
+        primitives::{Circle, Ellipse, Rectangle, Ring},
     },
     mesh::{Mesh, Mesh2d},
-    sprite_render::{ColorMaterial, MeshMaterial2d},
+    sprite_render::{ColorMaterial, Material2dPlugin, MeshMaterial2d},
     text::TextFont,
     time::{Fixed, Time},
     transform::{
@@ -35,9 +35,17 @@ use bevy::{
 
 use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
-use crate::units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers};
+use crate::{
+    debug_material::DebugMaterialsPlugin,
+    units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers},
+};
 
+mod debug_material;
+mod orbit_material;
 mod units;
+
+use debug_material::RingDebugMaterial;
+use orbit_material::{OrbitMaterial, OrbitMaterialPlugin};
 
 fn main() {
     App::new()
@@ -77,7 +85,6 @@ fn setup_viewport(mut commands: Commands, window: Single<&Window>) {
             clear_color: bevy::camera::ClearColorConfig::Custom(Color::BLACK), // space is black init
             ..default()
         },
-        // projection,
     ));
 }
 
@@ -156,7 +163,10 @@ fn set_all_debug_ui_visible(visible: bool, query: &mut Query<&mut Node, With<Deb
     }
 }
 
-fn debug_control_ui(mut contexts: EguiContexts, mut debug_ui_query: Query<&mut Node, With<DebugUI>>) {
+fn debug_control_ui(
+    mut contexts: EguiContexts,
+    mut debug_ui_query: Query<&mut Node, With<DebugUI>>,
+) {
     match contexts.ctx_mut() {
         Ok(context) => {
             egui::Window::new("Debug").show(context, |ui| {
@@ -183,6 +193,7 @@ fn setup_mouse_tooltip(mut commands: Commands) {
         Text::new("x,y"),
         Node {
             position_type: PositionType::Absolute,
+            display: Display::None, // Toggled on via debug ui
             ..default()
         },
     ));
@@ -318,9 +329,14 @@ struct Orbiter {
     polar_position: f32, // radians
 }
 
-#[derive(Component)]
-struct OrbitRing {
-    pub planet: Entity,
+#[derive(Component, Clone)]
+struct OrbitEllipse {
+    // pub planet: Entity,
+    pub center: Vec2,
+    pub semi_major: f32,
+    pub semi_minor: f32,
+    /// Argument of periapsis in radians.
+    pub rotation: f32,
 }
 
 pub struct SolarSystemPlugin;
@@ -330,11 +346,16 @@ const ORBIT_LINE_THICKNESS: f32 = 100_000.0;
 
 impl Plugin for SolarSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(new_orbit_timer())
+        app.add_plugins((OrbitMaterialPlugin, DebugMaterialsPlugin))
+            .insert_resource(new_orbit_timer())
             .add_systems(Startup, (add_star, add_planets).chain())
             .add_systems(
                 Update,
-                (orbit_runner_keyboard_controls_system, update_screen_labels),
+                (
+                    orbit_runner_keyboard_controls_system,
+                    update_screen_labels,
+                    update_orbit_line_display,
+                ),
             )
             .add_systems(FixedUpdate, move_celestial_body);
     }
@@ -411,6 +432,8 @@ fn add_planets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
+    mut debug_materials: ResMut<Assets<RingDebugMaterial>>,
 ) {
     let shamhat = PlanetSpec {
         name: "Shamhat".to_string(),
@@ -436,21 +459,66 @@ fn add_planets(
         orbit_period: 710. * 24. * 60. * 60., // seconds
     };
 
-    for planet in [shamhat, enkidu, humbaba] {
-        spawn_planet(&mut commands, &mut meshes, &mut materials, planet);
+    // for planet in [shamhat, enkidu, humbaba] {
+    for planet in [shamhat] {
+        spawn_planet(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut orbit_materials,
+            &mut debug_materials,
+            planet,
+        );
     }
+}
+
+/// Spawns a quad large enough to always cover the orbit at any zoom,
+/// paired with an `OrbitMaterial` and an `OrbitEllipse` descriptor.
+fn spawn_orbit(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    orbit_materials: &mut Assets<OrbitMaterial>,
+    debug_materials: &mut Assets<RingDebugMaterial>,
+    ellipse: OrbitEllipse,
+    color: Color,
+) {
+    // The quad must cover the full ellipse bounding box.
+    // Add generous padding so the AA fringe is never clipped.
+    let padding = 20.0;
+    let safe_size = (ellipse.semi_major + padding) * 2.0;
+
+    // let material = orbit_materials.add(OrbitMaterial {
+    //     center: ellipse.center,
+    //     semi_major: ellipse.semi_major,
+    //     semi_minor: ellipse.semi_minor,
+    //     rotation: ellipse.rotation,
+    //     world_per_pixel: 1.0, // overwritten each frame by sync_orbit_uniforms
+    //     line_width_px: 4.0,
+    //     color: LinearRgba::from(color),
+    // });
+
+    let material = debug_materials.add(RingDebugMaterial {
+        world_per_pixel: 1.0,
+        world_radius: ellipse.semi_major,
+        line_width_px: 5.0,
+        color: LinearRgba::from(color),
+    });
+
+    commands.spawn((
+        Transform::from_translation(ellipse.center.extend(0.0)),
+        Mesh2d(meshes.add(Rectangle::new(safe_size, safe_size))),
+        MeshMaterial2d(material),
+        ellipse,
+    ));
 }
 
 fn spawn_planet(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
+    orbit_materials: &mut ResMut<Assets<OrbitMaterial>>,
+    debug_materials: &mut ResMut<Assets<RingDebugMaterial>>,
     planet: PlanetSpec,
-    // name: &str,
-    // planet_radius: Kilometers,
-    // orbit_radius: Kilometers,
-    // orbit_period: f32,
-    // colour: Color,
 ) {
     let planet_shape = meshes.add(Circle::new(planet.radius.into()));
 
@@ -488,18 +556,31 @@ fn spawn_planet(
     ));
 
     // Spawn an orbit ring to show the orbit path
-    commands.spawn((
-        OrbitRing { planet: planet_id },
-        Mesh2d(meshes.add({
-            // This is an approximation; Ellipse does not implement Inset as concentric ellipses do not have parallel curves
-            let outer = Ellipse::new(planet.orbit_radius.into(), planet.orbit_radius.into());
-            let mut inner = outer;
-            inner.half_size -= Vec2::splat(ORBIT_LINE_THICKNESS);
-            Ring::new(outer, inner)
-        })),
-        MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.15))),
-        Transform::from_xyz(0., 0., -1.),
-    ));
+    // commands.spawn((
+    //     Mesh2d(meshes.add({
+    //         // This is an approximation; Ellipse does not implement Inset as concentric ellipses do not have parallel curves
+    //         let outer = Ellipse::new(planet.orbit_radius.into(), planet.orbit_radius.into());
+    //         let mut inner = outer;
+    //         inner.half_size -= Vec2::splat(ORBIT_LINE_THICKNESS);
+    //         Ring::new(outer, inner)
+    //     })),
+    //     MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.15))),
+    //     Transform::from_xyz(0., 0., -1.),
+    // ));
+
+    spawn_orbit(
+        commands,
+        meshes,
+        orbit_materials,
+        debug_materials,
+        OrbitEllipse {
+            center: Vec2::ZERO,
+            semi_major: planet.orbit_radius.into(),
+            semi_minor: planet.orbit_radius.into(),
+            rotation: 0.0,
+        },
+        Color::srgba(0.3, 0.6, 1.0, 0.9), // blue-ish
+    );
 }
 
 fn move_celestial_body(
@@ -519,6 +600,25 @@ fn move_celestial_body(
             let y = (orbiter.radius * orbiter.polar_position.sin()).into();
             transform.translation.x = x;
             transform.translation.y = y;
+        }
+    }
+}
+
+fn update_orbit_line_display(
+    mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
+    camera_query: Single<(&mut Projection, &Camera2d)>,
+    orbit_query: Query<(&OrbitEllipse, &MeshMaterial2d<OrbitMaterial>)>,
+) {
+    let (proj, _) = camera_query.into_inner();
+
+    let projection = proj.into_inner();
+
+    if let Projection::Orthographic(projection2d) = &mut *projection {
+        let world_per_pixel = projection2d.scale;
+        for (_ellipse, material_handle) in &orbit_query {
+            if let Some(material) = orbit_materials.get_mut(material_handle) {
+                material.world_per_pixel = world_per_pixel;
+            }
         }
     }
 }
