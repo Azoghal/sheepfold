@@ -1,9 +1,10 @@
 use bevy::{
+    color::LinearRgba,
     prelude::*,
     reflect::TypePath,
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
-    sprite_render::{Material2d, Material2dPlugin},
+    sprite_render::{AlphaMode2d, Material2d, Material2dPlugin},
 };
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
@@ -21,10 +22,13 @@ impl Material2d for UvDebugMaterial {
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct RingDebugMaterial {
-#[uniform(0)]
+    #[uniform(0)]
     pub world_per_pixel: f32,
+    #[uniform(0)]
     pub world_radius: f32,
+    #[uniform(0)]
     pub line_width_px: f32,
+    #[uniform(0)]
     pub color: LinearRgba,
 }
 
@@ -33,9 +37,9 @@ impl Material2d for RingDebugMaterial {
         "shaders/ring.wgsl".into()
     }
 
-    // fn vertex_shader() -> ShaderRef {
-    //     "shaders/uv_debug.wgsl".into()
-    // }
+    fn alpha_mode(&self) -> AlphaMode2d {
+        AlphaMode2d::Blend
+    }
 }
 
 pub struct DebugMaterialsPlugin;

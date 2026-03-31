@@ -355,6 +355,7 @@ impl Plugin for SolarSystemPlugin {
                     orbit_runner_keyboard_controls_system,
                     update_screen_labels,
                     update_orbit_line_display,
+                    update_ring_debug_display,
                 ),
             )
             .add_systems(FixedUpdate, move_celestial_body);
@@ -483,9 +484,9 @@ fn spawn_orbit(
     color: Color,
 ) {
     // The quad must cover the full ellipse bounding box.
-    // Add generous padding so the AA fringe is never clipped.
-    let padding = 20.0;
-    let safe_size = (ellipse.semi_major + padding) * 2.0;
+    // Pad by 10% of the orbit radius so the line (which grows in world units
+    // as the camera zooms out) is never clipped at the mesh boundary.
+    let safe_size = ellipse.semi_major * 2.2;
 
     // let material = orbit_materials.add(OrbitMaterial {
     //     center: ellipse.center,
@@ -500,7 +501,7 @@ fn spawn_orbit(
     let material = debug_materials.add(RingDebugMaterial {
         world_per_pixel: 1.0,
         world_radius: ellipse.semi_major,
-        line_width_px: 5.0,
+        line_width_px: 1.0,
         color: LinearRgba::from(color),
     });
 
@@ -579,7 +580,7 @@ fn spawn_planet(
             semi_minor: planet.orbit_radius.into(),
             rotation: 0.0,
         },
-        Color::srgba(0.3, 0.6, 1.0, 0.9), // blue-ish
+        Color::srgba(0.3, 0.6, 1.0, 0.6), // blue-ish
     );
 }
 
@@ -617,6 +618,23 @@ fn update_orbit_line_display(
         let world_per_pixel = projection2d.scale;
         for (_ellipse, material_handle) in &orbit_query {
             if let Some(material) = orbit_materials.get_mut(material_handle) {
+                material.world_per_pixel = world_per_pixel;
+            }
+        }
+    }
+}
+
+fn update_ring_debug_display(
+    mut ring_materials: ResMut<Assets<RingDebugMaterial>>,
+    camera_query: Single<(&Projection, &Camera2d)>,
+    ring_query: Query<&MeshMaterial2d<RingDebugMaterial>>,
+) {
+    let (proj, _) = *camera_query;
+
+    if let Projection::Orthographic(projection2d) = proj {
+        let world_per_pixel = projection2d.scale;
+        for material_handle in &ring_query {
+            if let Some(material) = ring_materials.get_mut(material_handle) {
                 material.world_per_pixel = world_per_pixel;
             }
         }
