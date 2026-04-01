@@ -1,11 +1,11 @@
-use std::{f32::consts::TAU, fmt::Debug};
+use std::f32::consts::TAU;
 
 use bevy::{
     DefaultPlugins,
     app::{App, FixedUpdate, Plugin, PostUpdate, Startup, Update},
-    asset::{Assets, Handle},
-    camera::{Camera, Camera2d, OrthographicProjection, Projection, Viewport},
-    color::{Color, LinearRgba},
+    asset::Assets,
+    camera::{Camera, Camera2d, Projection, Viewport},
+    color::{Alpha, Color, LinearRgba},
     ecs::{
         component::Component,
         entity::Entity,
@@ -18,10 +18,10 @@ use bevy::{
     math::{
         Vec2,
         ops::powf,
-        primitives::{Circle, Ellipse, Rectangle, Ring},
+        primitives::{Circle, Rectangle},
     },
     mesh::{Mesh, Mesh2d},
-    sprite_render::{ColorMaterial, Material2dPlugin, MeshMaterial2d},
+    sprite_render::{ColorMaterial, MeshMaterial2d},
     text::TextFont,
     time::{Fixed, Time},
     transform::{
@@ -44,7 +44,6 @@ mod debug_material;
 mod orbit_material;
 mod units;
 
-use debug_material::RingDebugMaterial;
 use orbit_material::{OrbitMaterial, OrbitMaterialPlugin};
 
 fn main() {
@@ -342,7 +341,6 @@ struct OrbitEllipse {
 pub struct SolarSystemPlugin;
 
 const PLANET_DRAW_SCALE: f32 = 100.0;
-const ORBIT_LINE_THICKNESS: f32 = 100_000.0;
 
 impl Plugin for SolarSystemPlugin {
     fn build(&self, app: &mut App) {
@@ -355,7 +353,6 @@ impl Plugin for SolarSystemPlugin {
                     orbit_runner_keyboard_controls_system,
                     update_screen_labels,
                     update_orbit_line_display,
-                    update_ring_debug_display,
                 ),
             )
             .add_systems(FixedUpdate, move_celestial_body);
@@ -363,17 +360,24 @@ impl Plugin for SolarSystemPlugin {
 }
 
 fn update_screen_labels(
-    mut labels: Query<(&mut Node, &ComputedNode, &ScreenLabel)>,
-    targets: Query<&GlobalTransform>,
+    mut labels: Query<(&mut Node, &ComputedNode, &ScreenLabel, &mut Text)>,
+    targets: Query<(&GlobalTransform, Option<&Name>)>,
     camera_query: Single<(&Camera, &GlobalTransform)>,
 ) {
     let (camera, camera_transform) = *camera_query;
 
-    for (mut screen_label_node, computed_node, label) in labels.iter_mut() {
-        let Ok(target_transform) = targets.get(label.target) else {
+    for (mut screen_label_node, computed_node, label, mut text) in labels.iter_mut() {
+        let Ok(target) = targets.get(label.target) else {
             continue;
         };
 
+        let (target_transform, target_name) = target;
+
+        if let Some(name) = target_name {
+            text.0 = name.0.clone();
+        }
+
+        // TODO offset the name by world position to keep it underneath?
         let world_position = target_transform.translation();
         let half_size = computed_node.size() / 2.0;
 
@@ -434,7 +438,6 @@ fn add_planets(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
-    mut debug_materials: ResMut<Assets<RingDebugMaterial>>,
 ) {
     let shamhat = PlanetSpec {
         name: "Shamhat".to_string(),
@@ -461,52 +464,39 @@ fn add_planets(
     };
 
     // for planet in [shamhat, enkidu, humbaba] {
-    for planet in [shamhat] {
+    for planet in [shamhat, enkidu, humbaba] {
         spawn_planet(
             &mut commands,
             &mut meshes,
             &mut materials,
             &mut orbit_materials,
-            &mut debug_materials,
             planet,
         );
     }
 }
 
-/// Spawns a quad large enough to always cover the orbit at any zoom,
-/// paired with an `OrbitMaterial` and an `OrbitEllipse` descriptor.
 fn spawn_orbit(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     orbit_materials: &mut Assets<OrbitMaterial>,
-    debug_materials: &mut Assets<RingDebugMaterial>,
     ellipse: OrbitEllipse,
     color: Color,
 ) {
-    // The quad must cover the full ellipse bounding box.
-    // Pad by 10% of the orbit radius so the line (which grows in world units
-    // as the camera zooms out) is never clipped at the mesh boundary.
+    // Make sure mesh definitely big enough
     let safe_size = ellipse.semi_major * 2.2;
 
-    // let material = orbit_materials.add(OrbitMaterial {
-    //     center: ellipse.center,
-    //     semi_major: ellipse.semi_major,
-    //     semi_minor: ellipse.semi_minor,
-    //     rotation: ellipse.rotation,
-    //     world_per_pixel: 1.0, // overwritten each frame by sync_orbit_uniforms
-    //     line_width_px: 4.0,
-    //     color: LinearRgba::from(color),
-    // });
-
-    let material = debug_materials.add(RingDebugMaterial {
-        world_per_pixel: 1.0,
-        world_radius: ellipse.semi_major,
-        line_width_px: 1.0,
+    let material = orbit_materials.add(OrbitMaterial {
+        center: ellipse.center,
+        semi_major: ellipse.semi_major,
+        semi_minor: ellipse.semi_minor,
+        rotation: ellipse.rotation,
+        world_per_pixel: 1.0, // overwritten each frame by update_orbit_line_display
+        line_width_px: 0.5,
         color: LinearRgba::from(color),
     });
 
     commands.spawn((
-        Transform::from_translation(ellipse.center.extend(0.0)),
+        Transform::from_translation(ellipse.center.extend(-0.1)),
         Mesh2d(meshes.add(Rectangle::new(safe_size, safe_size))),
         MeshMaterial2d(material),
         ellipse,
@@ -518,7 +508,6 @@ fn spawn_planet(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     orbit_materials: &mut ResMut<Assets<OrbitMaterial>>,
-    debug_materials: &mut ResMut<Assets<RingDebugMaterial>>,
     planet: PlanetSpec,
 ) {
     let planet_shape = meshes.add(Circle::new(planet.radius.into()));
@@ -556,31 +545,18 @@ fn spawn_planet(
         ScreenLabel { target: planet_id },
     ));
 
-    // Spawn an orbit ring to show the orbit path
-    // commands.spawn((
-    //     Mesh2d(meshes.add({
-    //         // This is an approximation; Ellipse does not implement Inset as concentric ellipses do not have parallel curves
-    //         let outer = Ellipse::new(planet.orbit_radius.into(), planet.orbit_radius.into());
-    //         let mut inner = outer;
-    //         inner.half_size -= Vec2::splat(ORBIT_LINE_THICKNESS);
-    //         Ring::new(outer, inner)
-    //     })),
-    //     MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.15))),
-    //     Transform::from_xyz(0., 0., -1.),
-    // ));
-
+    // Spawn an orbit line for the planet
     spawn_orbit(
         commands,
         meshes,
         orbit_materials,
-        debug_materials,
         OrbitEllipse {
             center: Vec2::ZERO,
             semi_major: planet.orbit_radius.into(),
             semi_minor: planet.orbit_radius.into(),
             rotation: 0.0,
         },
-        Color::srgba(0.3, 0.6, 1.0, 0.6), // blue-ish
+        planet.colour.with_alpha(0.3),
     );
 }
 
@@ -618,23 +594,6 @@ fn update_orbit_line_display(
         let world_per_pixel = projection2d.scale;
         for (_ellipse, material_handle) in &orbit_query {
             if let Some(material) = orbit_materials.get_mut(material_handle) {
-                material.world_per_pixel = world_per_pixel;
-            }
-        }
-    }
-}
-
-fn update_ring_debug_display(
-    mut ring_materials: ResMut<Assets<RingDebugMaterial>>,
-    camera_query: Single<(&Projection, &Camera2d)>,
-    ring_query: Query<&MeshMaterial2d<RingDebugMaterial>>,
-) {
-    let (proj, _) = *camera_query;
-
-    if let Projection::Orthographic(projection2d) = proj {
-        let world_per_pixel = projection2d.scale;
-        for material_handle in &ring_query {
-            if let Some(material) = ring_materials.get_mut(material_handle) {
                 material.world_per_pixel = world_per_pixel;
             }
         }
