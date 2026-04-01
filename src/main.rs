@@ -51,6 +51,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(EguiPlugin::default())
         .add_plugins(SolarSystemPlugin)
+        .insert_resource(new_camera_controller())
         .add_systems(
             Startup,
             (
@@ -59,6 +60,7 @@ fn main() {
             ),
         )
         .add_systems(FixedUpdate, camera_controls_system)
+        .add_systems(Update, apply_camera_scale)
         .add_systems(
             EguiPrimaryContextPass,
             (time_control_ui, view_control_ui, debug_control_ui),
@@ -87,14 +89,12 @@ fn setup_viewport(mut commands: Commands, window: Single<&Window>) {
     ));
 }
 
-fn default_viewport_scale(camera_query: Single<&mut Projection>, window: Single<&Window>) {
-    let mut projection = camera_query.into_inner();
+fn default_viewport_scale(
+    window: Single<&Window>,
+    mut camera_controller: ResMut<CameraController>,
+) {
     let window_size = window.resolution.physical_size().as_vec2();
-
-    // Camera zoom controls
-    if let Projection::Orthographic(projection2d) = &mut *projection {
-        projection2d.scale = (INNER_SOLAR_SYSTEM_RADIUS / window_size.x).into();
-    }
+    camera_controller.scale = (INNER_SOLAR_SYSTEM_RADIUS / window_size.x).into();
 }
 
 fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRunner>) {
@@ -127,22 +127,18 @@ fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRun
     }
 }
 
-fn view_control_ui(mut contexts: EguiContexts, camera_query: Single<&mut Projection>) {
-    // TODO add a resource for the camera zoom stuff in same way as the timer
-    // will stop need to duplicate code
+fn view_control_ui(
+    mut contexts: EguiContexts,
+    mut camera_controller: ResMut<CameraController>,
+) {
     match contexts.ctx_mut() {
         Ok(context) => {
-            let mut projection = camera_query.into_inner();
             egui::Window::new("View").show(context, |ui| {
-                if ui.button("Zoom Out (-)").clicked()
-                    && let Projection::Orthographic(projection2d) = &mut *projection
-                {
-                    projection2d.scale *= 1.1;
+                if ui.button("Zoom Out (-)").clicked() {
+                    camera_controller.zoom_out();
                 }
-                if ui.button("Zoom In (=)").clicked()
-                    && let Projection::Orthographic(projection2d) = &mut *projection
-                {
-                    projection2d.scale *= 0.91;
+                if ui.button("Zoom In (=)").clicked() {
+                    camera_controller.zoom_in();
                 }
             });
         }
@@ -239,20 +235,51 @@ fn orbit_runner_keyboard_controls_system(
 
 fn camera_controls_system(
     input: Res<ButtonInput<KeyCode>>,
-    camera_query: Single<&mut Projection>,
+    mut camera_controller: ResMut<CameraController>,
     time: Res<Time<Fixed>>,
 ) {
+    if input.pressed(KeyCode::Minus) {
+        camera_controller.zoom_out_continuous(time.delta_secs());
+    }
+    if input.pressed(KeyCode::Equal) {
+        camera_controller.zoom_in_continuous(time.delta_secs());
+    }
+}
+
+#[derive(Resource)]
+struct CameraController {
+    scale: f32,
+}
+
+impl CameraController {
+    fn zoom_in(&mut self) {
+        self.scale *= 0.91;
+    }
+
+    fn zoom_out(&mut self) {
+        self.scale *= 1.1;
+    }
+
+    fn zoom_in_continuous(&mut self, delta_secs: f32) {
+        self.scale *= powf(0.25f32, delta_secs);
+    }
+
+    fn zoom_out_continuous(&mut self, delta_secs: f32) {
+        self.scale *= powf(4.0f32, delta_secs);
+    }
+}
+
+fn new_camera_controller() -> CameraController {
+    CameraController { scale: 1.0 }
+}
+
+fn apply_camera_scale(
+    camera_controller: Res<CameraController>,
+    camera_query: Single<&mut Projection>,
+) {
     let mut projection = camera_query.into_inner();
-
-    // Camera zoom controls
     if let Projection::Orthographic(projection2d) = &mut *projection {
-        if input.pressed(KeyCode::Minus) {
-            projection2d.scale *= powf(4.0f32, time.delta_secs());
-        }
-
-        if input.pressed(KeyCode::Equal) {
-            projection2d.scale *= powf(0.25f32, time.delta_secs());
-        }
+        projection2d.scale = camera_controller.scale;
     }
 }
 
@@ -583,19 +610,12 @@ fn move_celestial_body(
 
 fn update_orbit_line_display(
     mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
-    camera_query: Single<(&mut Projection, &Camera2d)>,
+    camera_controller: Res<CameraController>,
     orbit_query: Query<(&OrbitEllipse, &MeshMaterial2d<OrbitMaterial>)>,
 ) {
-    let (proj, _) = camera_query.into_inner();
-
-    let projection = proj.into_inner();
-
-    if let Projection::Orthographic(projection2d) = &mut *projection {
-        let world_per_pixel = projection2d.scale;
-        for (_ellipse, material_handle) in &orbit_query {
-            if let Some(material) = orbit_materials.get_mut(material_handle) {
-                material.world_per_pixel = world_per_pixel;
-            }
+    for (_ellipse, material_handle) in &orbit_query {
+        if let Some(material) = orbit_materials.get_mut(material_handle) {
+            material.world_per_pixel = camera_controller.scale;
         }
     }
 }
