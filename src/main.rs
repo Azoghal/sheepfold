@@ -3,8 +3,7 @@ use bevy::{
     app::App,
 };
 
-mod debug_material;
-mod orbit_material;
+mod materials;
 mod units;
 
 mod solar_system;

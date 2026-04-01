@@ -19,7 +19,7 @@ use bevy::{
 };
 
 use crate::{
-    orbit_material::OrbitMaterial,
+    materials::OrbitMaterial,
     units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers},
 };
 

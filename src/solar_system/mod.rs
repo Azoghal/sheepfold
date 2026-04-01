@@ -10,10 +10,7 @@ use bevy::{
 };
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 
-use crate::{
-    debug_material::DebugMaterialsPlugin,
-    orbit_material::OrbitMaterialPlugin,
-};
+use crate::materials::{DebugMaterialsPlugin, OrbitMaterialPlugin};
 
 use resources::{new_camera_controller, new_orbit_timer};
 use setup::{add_planets, add_star, default_viewport_scale, setup_mouse_tooltip, setup_viewport};

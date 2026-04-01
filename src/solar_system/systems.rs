@@ -13,7 +13,7 @@ use bevy::{
 
 use bevy_egui::{EguiContexts, egui};
 
-use crate::orbit_material::OrbitMaterial;
+use crate::materials::OrbitMaterial;
 
 use super::components::{CelestialBody, DebugUI, Name, Orbiter, OrbitEllipse, ScreenLabel, TooltipText};
 use super::resources::{CameraController, OrbitRunner};

@@ -61,6 +61,5 @@ impl Kilometers {
 // 1 AU in kilometers 
 pub(crate) const ASTRONOMICAL_UNIT: Kilometers = Kilometers::new(149_597_870.700);
 pub(crate) const INNER_SOLAR_SYSTEM_RADIUS: Kilometers = ASTRONOMICAL_UNIT.mul(10.); // 100?
-const OORT_RADIUS: Kilometers = ASTRONOMICAL_UNIT.mul(200_000.);
 
 
