@@ -49,26 +49,7 @@ use orbit_material::{OrbitMaterial, OrbitMaterialPlugin};
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin::default())
         .add_plugins(SolarSystemPlugin)
-        .insert_resource(new_camera_controller())
-        .add_systems(
-            Startup,
-            (
-                (setup_viewport, default_viewport_scale).chain(),
-                setup_mouse_tooltip,
-            ),
-        )
-        .add_systems(FixedUpdate, camera_controls_system)
-        .add_systems(Update, apply_camera_scale)
-        .add_systems(
-            EguiPrimaryContextPass,
-            (time_control_ui, view_control_ui, debug_control_ui),
-        )
-        .add_systems(
-            PostUpdate,
-            draw_mouse_tooltip.after(TransformSystems::Propagate),
-        )
         .run();
 }
 
@@ -127,10 +108,7 @@ fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRun
     }
 }
 
-fn view_control_ui(
-    mut contexts: EguiContexts,
-    mut camera_controller: ResMut<CameraController>,
-) {
+fn view_control_ui(mut contexts: EguiContexts, mut camera_controller: ResMut<CameraController>) {
     match contexts.ctx_mut() {
         Ok(context) => {
             egui::Window::new("View").show(context, |ui| {
@@ -372,11 +350,30 @@ const PLANET_DRAW_SCALE: f32 = 100.0;
 impl Plugin for SolarSystemPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((OrbitMaterialPlugin, DebugMaterialsPlugin))
+            .add_plugins(EguiPlugin::default())
             .insert_resource(new_orbit_timer())
-            .add_systems(Startup, (add_star, add_planets).chain())
+            .insert_resource(new_camera_controller())
+            .add_systems(
+                EguiPrimaryContextPass,
+                (time_control_ui, view_control_ui, debug_control_ui),
+            )
+            .add_systems(
+                Startup,
+                (
+                    (add_star, add_planets).chain(),
+                    (setup_viewport, default_viewport_scale).chain(),
+                    setup_mouse_tooltip,
+                ),
+            )
+            .add_systems(FixedUpdate, camera_controls_system)
+            .add_systems(
+                PostUpdate,
+                draw_mouse_tooltip.after(TransformSystems::Propagate),
+            )
             .add_systems(
                 Update,
                 (
+                    apply_camera_scale,
                     orbit_runner_keyboard_controls_system,
                     update_screen_labels,
                     update_orbit_line_display,
