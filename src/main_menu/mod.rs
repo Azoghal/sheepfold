@@ -3,7 +3,9 @@ use bevy::{
     camera::{Camera, Camera2d, ClearColorConfig, Viewport},
     color::Color,
     ecs::{
-        message::MessageWriter, schedule::IntoScheduleConfigs, system::{Commands, ResMut, Single}
+        message::MessageWriter,
+        schedule::IntoScheduleConfigs,
+        system::{Commands, ResMut, Single},
     },
     state::{condition::in_state, state::NextState, state_scoped::DespawnOnExit},
     ui::{Node, PositionType, widget::Text},
@@ -19,10 +21,10 @@ pub(super) struct MainMenuPlugin;
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-                EguiPrimaryContextPass,
-                main_menu_ui.run_if(in_state(AppState::MainMenu)),
-            )
-            .add_systems(Startup, menu_setup);
+            EguiPrimaryContextPass,
+            main_menu_ui.run_if(in_state(AppState::MainMenu)),
+        )
+        .add_systems(Startup, menu_setup);
     }
 }
 
@@ -60,6 +62,7 @@ fn main_menu_ui(
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
+            println!("running main menu ui");
             bevy_egui::egui::CentralPanel::default().show(context, |ui| {
                 ui.heading("Sheepfold");
                 if ui.button("Start Simulator").clicked() {

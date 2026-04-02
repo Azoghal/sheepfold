@@ -2,7 +2,10 @@ use std::f32::consts::TAU;
 
 use bevy::{
     camera::{Camera, Projection},
-    ecs::{query::With, system::{Query, Res, ResMut, Single}},
+    ecs::{
+        query::With,
+        system::{Query, Res, ResMut, Single},
+    },
     input::{ButtonInput, keyboard::KeyCode},
     sprite_render::MeshMaterial2d,
     time::{Fixed, Time},
@@ -15,7 +18,9 @@ use bevy_egui::{EguiContexts, egui};
 
 use crate::materials::OrbitMaterial;
 
-use super::components::{CelestialBody, DebugUI, Name, Orbiter, OrbitEllipse, ScreenLabel, TooltipText};
+use super::components::{
+    CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
+};
 use super::resources::{CameraController, OrbitRunner};
 
 pub(super) fn apply_camera_scale(
@@ -31,6 +36,7 @@ pub(super) fn apply_camera_scale(
 pub(super) fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRunner>) {
     match contexts.ctx_mut() {
         Ok(context) => {
+            println!("running time control ui");
             egui::Window::new("Time").show(context, |ui| {
                 if orbit_runner.paused {
                     ui.label("PAUSED");
@@ -62,6 +68,7 @@ pub(super) fn view_control_ui(
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
+            println!("running view control ui");
             egui::Window::new("View").show(context, |ui| {
                 if ui.button("Zoom Out (-)").clicked() {
                     camera_controller.zoom_out();
@@ -82,6 +89,7 @@ pub(super) fn debug_control_ui(
     match contexts.ctx_mut() {
         Ok(context) => {
             egui::Window::new("Debug").show(context, |ui| {
+                println!("running debug ui");
                 if ui.button("Show All").clicked() {
                     set_all_debug_ui_visible(true, &mut debug_ui_query);
                 }
@@ -95,7 +103,11 @@ pub(super) fn debug_control_ui(
 }
 
 fn set_all_debug_ui_visible(visible: bool, query: &mut Query<&mut Node, With<DebugUI>>) {
-    let desired_display = if visible { Display::Flex } else { Display::None };
+    let desired_display = if visible {
+        Display::Flex
+    } else {
+        Display::None
+    };
     for mut node in query.iter_mut() {
         node.display = desired_display;
     }

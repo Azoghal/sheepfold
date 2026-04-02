@@ -18,12 +18,16 @@ use bevy::{
     window::Window,
 };
 
+use bevy_egui::PrimaryEguiContext;
+
 use crate::{
     materials::OrbitMaterial,
     units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers},
 };
 
-use super::components::{CelestialBody, DebugUI, Name, Orbiter, OrbitEllipse, ScreenLabel, TooltipText};
+use super::components::{
+    CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
+};
 use super::resources::CameraController;
 
 const PLANET_DRAW_SCALE: f32 = 100.0;
@@ -32,6 +36,7 @@ pub(super) fn setup_viewport(mut commands: Commands, window: Single<&Window>) {
     let window_size = window.resolution.physical_size().as_vec2();
 
     commands.spawn((
+        PrimaryEguiContext,
         Camera2d,
         Camera {
             viewport: Some(Viewport {
