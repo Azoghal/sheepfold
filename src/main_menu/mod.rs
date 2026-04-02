@@ -3,10 +3,9 @@ use bevy::{
     camera::{Camera, Camera2d, ClearColorConfig, Viewport},
     color::Color,
     ecs::{
-        message::MessageWriter,
-        system::{Commands, ResMut, Single},
+        message::MessageWriter, schedule::IntoScheduleConfigs, system::{Commands, ResMut, Single}
     },
-    state::{state::NextState, state_scoped::DespawnOnExit},
+    state::{condition::in_state, state::NextState, state_scoped::DespawnOnExit},
     ui::{Node, PositionType, widget::Text},
     utils::default,
     window::Window,
@@ -19,7 +18,10 @@ pub(super) struct MainMenuPlugin;
 
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(EguiPrimaryContextPass, main_menu_ui)
+        app.add_systems(
+                EguiPrimaryContextPass,
+                main_menu_ui.run_if(in_state(AppState::MainMenu)),
+            )
             .add_systems(Startup, menu_setup);
     }
 }
