@@ -8,11 +8,12 @@ mod units;
 mod resources;
 
 mod solar_system;
+mod main_menu;
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
 enum AppState {
+    // SplashScreen,
     #[default]
-    SplashScreen,
     MainMenu,
     Simulator,
 }
@@ -24,7 +25,7 @@ fn main() {
         .insert_resource(resources::PlanetScaleMultiplier::new(10000.))
         .init_state::<AppState>()
         // .add_plugins(splash_screen::SplashScreenPlugin)
-        // .add_plugins(main_menu::MainMenuPlugin)
-        .add_plugins(solar_system::SolarSystemPlugin)
+        .add_plugins(main_menu::MainMenuPlugin)
+        // .add_plugins(solar_system::SolarSystemPlugin)
         .run();
 }
