@@ -1,15 +1,15 @@
 use bevy::{
-    app::{App,  Plugin, Startup},
+    app::{App, Plugin, Startup},
     camera::Projection,
     ecs::{
         schedule::IntoScheduleConfigs,
-        system::{ ResMut, Single},
+        system::{Res, ResMut, Single},
     },
-    state::{condition::in_state, state::{NextState}},
+    state::{condition::in_state, state::NextState},
 };
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
-use crate::AppState;
+use crate::{resources::PreviousAppState, AppState};
 
 pub(super) struct SettingsPlugin;
 
@@ -30,11 +30,10 @@ fn default_viewport_scale(camera_query: Single<&mut Projection>) {
     }
 }
 
-// See https://github.com/bevyengine/bevy/commit/f8a9f296bf45584feb987d626dbf331ac9b01918
-// for easily getting previous state. Not in current release though
 fn settings_ui(
     mut contexts: EguiContexts,
     mut app_state: ResMut<NextState<AppState>>,
+    previous_state: Option<Res<PreviousAppState>>,
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
@@ -44,8 +43,8 @@ fn settings_ui(
                     println!("gotta do something init")
                 }
                 if ui.button("Back").clicked() {
-                    // TODO send us back to the previous state rather than always the main menu
-                    app_state.set(AppState::MainMenu);
+                    let back_to = previous_state.map(|s| s.0).unwrap_or(AppState::MainMenu);
+                    app_state.set(back_to);
                 }
             });
         }

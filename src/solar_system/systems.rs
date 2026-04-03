@@ -6,7 +6,7 @@ use bevy::{
     ecs::{
         message::MessageWriter,
         query::With,
-        system::{Query, Res, ResMut, Single},
+        system::{Commands, Query, Res, ResMut, Single},
     },
     input::{ButtonInput, keyboard::KeyCode},
     sprite_render::MeshMaterial2d,
@@ -19,7 +19,7 @@ use bevy::{
 
 use bevy_egui::{EguiContexts, egui};
 
-use crate::{AppState, materials::OrbitMaterial};
+use crate::{AppState, materials::OrbitMaterial, resources::PreviousAppState};
 
 use super::components::{
     CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
@@ -106,12 +106,17 @@ pub(super) fn game_menu_ui(
     mut contexts: EguiContexts,
     mut app_exit_writer: MessageWriter<AppExit>,
     mut app_state: ResMut<NextState<AppState>>,
+    mut commands: Commands,
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
             egui::Window::new("Game").show(context, |ui| {
                 if ui.button("Main Menu").clicked() {
                     app_state.set(AppState::MainMenu);
+                }
+                if ui.button("Settings").clicked() {
+                    commands.insert_resource(PreviousAppState(AppState::Simulator));
+                    app_state.set(AppState::Settings);
                 }
                 if ui.button("Quit to Desktop").clicked() {
                     app_exit_writer.write(AppExit::Success);

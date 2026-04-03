@@ -4,13 +4,13 @@ use bevy::{
     ecs::{
         message::MessageWriter,
         schedule::IntoScheduleConfigs,
-        system::{ResMut, Single},
+        system::{Commands, ResMut, Single},
     },
     state::{condition::in_state, state::NextState},
 };
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
-use crate::AppState;
+use crate::{resources::PreviousAppState, AppState};
 
 pub(super) struct MainMenuPlugin;
 
@@ -35,6 +35,7 @@ fn main_menu_ui(
     mut contexts: EguiContexts,
     mut app_exit_writer: MessageWriter<AppExit>,
     mut app_state: ResMut<NextState<AppState>>,
+    mut commands: Commands,
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
@@ -44,6 +45,7 @@ fn main_menu_ui(
                     app_state.set(AppState::Simulator);
                 }
                 if ui.button("Settings").clicked() {
+                    commands.insert_resource(PreviousAppState(AppState::MainMenu));
                     app_state.set(AppState::Settings);
                 }
                 if ui.button("Exit").clicked() {
