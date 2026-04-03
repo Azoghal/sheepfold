@@ -1,8 +1,12 @@
-use bevy::{ecs::resource::Resource, math::ops::powf};
+use bevy::{
+    ecs::{entity::Entity, resource::Resource},
+    math::ops::powf,
+};
 
 #[derive(Resource)]
 pub(crate) struct CameraController {
     pub(crate) scale: f32,
+    pub(crate) target: Option<Entity>,
 }
 
 impl CameraController {
@@ -24,7 +28,10 @@ impl CameraController {
 }
 
 pub(crate) fn new_camera_controller() -> CameraController {
-    CameraController { scale: 1.0 }
+    CameraController {
+        scale: 1.0,
+        target: None,
+    }
 }
 
 #[derive(Resource)]

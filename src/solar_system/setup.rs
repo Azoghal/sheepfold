@@ -3,17 +3,25 @@ use std::f32::consts::TAU;
 use bevy::{
     asset::Assets,
     color::{Alpha, Color, LinearRgba},
-    ecs::system::{Commands, Res, ResMut, Single},
+    ecs::{
+        entity::Entity,
+        observer::On,
+        system::{Commands, Query, Res, ResMut, Single},
+    },
     math::{
         Vec2,
         primitives::{Circle, Rectangle},
     },
     mesh::{Mesh, Mesh2d},
+    picking::events::{Click, Out, Over, Pointer},
     sprite_render::{ColorMaterial, MeshMaterial2d},
     state::state_scoped::DespawnOnExit,
-    text::TextFont,
+    text::{TextColor, TextFont},
     transform::components::Transform,
-    ui::{Display, Node, PositionType, widget::Text},
+    ui::{
+        AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, Node, PositionType,
+        Val, widget::Text,
+    },
     utils::default,
     window::Window,
 };
@@ -26,9 +34,12 @@ use crate::{
 };
 
 use super::components::{
-    CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
+    BaseColor, CelestialBody, DebugUI, ForPlanet, Name, OrbitEllipse, Orbiter, PlanetClicked,
+    PlanetHUD, PlanetIndicator, TooltipText,
 };
 use super::resources::CameraController;
+
+const INDICATOR_SIZE: f32 = 10.0;
 
 pub(super) fn default_viewport_scale(
     window: Single<&Window>,
@@ -46,7 +57,7 @@ pub(super) fn setup_mouse_tooltip(mut commands: Commands) {
         Text::new("x,y"),
         Node {
             position_type: PositionType::Absolute,
-            display: Display::None, // Toggled on via debug ui
+            display: Display::None,
             ..default()
         },
     ));
@@ -57,36 +68,21 @@ pub(super) fn add_star(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let enlil_colour = Color::hsl(60.0, 0.75, 0.75);
-    let enlil_shape = meshes.add(Circle::new(Kilometers::from(695700.0).into()));
-
+    let colour = Color::hsl(60.0, 0.75, 0.75);
     let name = "Enlil";
 
-    let enlil_id = commands
+    let star_id = commands
         .spawn((
             DespawnOnExit(AppState::Simulator),
             CelestialBody,
             Name(name.to_string()),
-            Mesh2d(enlil_shape),
-            MeshMaterial2d(materials.add(enlil_colour)),
-            Transform::from_xyz(0.0, 0., 0.),
+            Mesh2d(meshes.add(Circle::new(Kilometers::from(695700.0).into()))),
+            MeshMaterial2d(materials.add(colour)),
+            Transform::from_xyz(0.0, 0.0, 0.0),
         ))
         .id();
 
-    commands.spawn((
-        DespawnOnExit(AppState::Simulator),
-        Text::new(name.to_string()),
-        TextFont {
-            font_size: 14.0,
-            ..default()
-        },
-        Node {
-            position_type: PositionType::Absolute,
-            align_items: bevy::ui::AlignItems::Center,
-            ..default()
-        },
-        ScreenLabel { target: enlil_id },
-    ));
+    spawn_planet_hud(&mut commands, star_id, name, colour, 14.0);
 }
 
 struct PlanetSpec {
@@ -106,38 +102,32 @@ pub(super) fn add_planets(
 ) {
     let scale = planet_scale.value();
 
-    let shamhat = PlanetSpec {
-        name: "Shamhat".to_string(),
-        colour: Color::hsl(0.0, 0.85, 0.75),
-        radius: Kilometers::from(3500.0 * scale),
-        orbit_radius: ASTRONOMICAL_UNIT * 0.4,
-        orbit_period: 30. * 24. * 60. * 60.,
-    };
+    let planets = [
+        PlanetSpec {
+            name: "Shamhat".to_string(),
+            colour: Color::hsl(0.0, 0.85, 0.75),
+            radius: Kilometers::from(3500.0 * scale),
+            orbit_radius: ASTRONOMICAL_UNIT * 0.4,
+            orbit_period: 30. * 24. * 60. * 60.,
+        },
+        PlanetSpec {
+            name: "Enkidu".to_string(),
+            colour: Color::hsl(240.0, 0.75, 0.75),
+            radius: Kilometers::from(6371.0 * scale),
+            orbit_radius: ASTRONOMICAL_UNIT * 1.0,
+            orbit_period: 365. * 24. * 60. * 60.,
+        },
+        PlanetSpec {
+            name: "Humbaba".to_string(),
+            colour: Color::hsl(120.0, 0.75, 0.75),
+            radius: Kilometers::from(4000.0 * scale),
+            orbit_radius: ASTRONOMICAL_UNIT * 1.7,
+            orbit_period: 710. * 24. * 60. * 60.,
+        },
+    ];
 
-    let enkidu = PlanetSpec {
-        name: "Enkidu".to_string(),
-        colour: Color::hsl(240.0, 0.75, 0.75),
-        radius: Kilometers::from(6371.0 * scale),
-        orbit_radius: ASTRONOMICAL_UNIT * 1.0,
-        orbit_period: 365. * 24. * 60. * 60.,
-    };
-
-    let humbaba = PlanetSpec {
-        name: "Humbaba".to_string(),
-        colour: Color::hsl(120.0, 0.75, 0.75),
-        radius: Kilometers::from(4000.0 * scale),
-        orbit_radius: ASTRONOMICAL_UNIT * 1.7,
-        orbit_period: 710. * 24. * 60. * 60.,
-    };
-
-    for planet in [shamhat, enkidu, humbaba] {
-        spawn_planet(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &mut orbit_materials,
-            planet,
-        );
+    for planet in planets {
+        spawn_planet(&mut commands, &mut meshes, &mut materials, &mut orbit_materials, planet);
     }
 }
 
@@ -149,17 +139,15 @@ fn spawn_orbit(
     color: Color,
 ) {
     let safe_size = ellipse.semi_major * 2.2;
-
     let material = orbit_materials.add(OrbitMaterial {
         center: ellipse.center,
         semi_major: ellipse.semi_major,
         semi_minor: ellipse.semi_minor,
         rotation: ellipse.rotation,
-        world_per_pixel: 1.0, // overwritten each frame by update_orbit_line_display
+        world_per_pixel: 1.0,
         line_width_px: 0.5,
         color: LinearRgba::from(color),
     });
-
     commands.spawn((
         DespawnOnExit(AppState::Simulator),
         Transform::from_translation(ellipse.center.extend(-0.1)),
@@ -176,7 +164,6 @@ fn spawn_planet(
     orbit_materials: &mut ResMut<Assets<OrbitMaterial>>,
     planet: PlanetSpec,
 ) {
-    let planet_shape = meshes.add(Circle::new(planet.radius.into()));
     let polar_speed = TAU / planet.orbit_period;
     println!("{0}:{1}", planet.name, polar_speed);
 
@@ -190,25 +177,11 @@ fn spawn_planet(
                 polar_speed,
                 polar_position: 0.0,
             },
-            Mesh2d(planet_shape),
+            Mesh2d(meshes.add(Circle::new(planet.radius.into()))),
             MeshMaterial2d(materials.add(planet.colour)),
-            Transform::from_xyz(planet.orbit_radius.into(), 0., 0.),
+            Transform::from_xyz(planet.orbit_radius.into(), 0.0, 0.0),
         ))
         .id();
-
-    commands.spawn((
-        DespawnOnExit(AppState::Simulator),
-        Text::new(planet.name.to_string()),
-        TextFont {
-            font_size: 9.0,
-            ..default()
-        },
-        Node {
-            position_type: PositionType::Absolute,
-            ..default()
-        },
-        ScreenLabel { target: planet_id },
-    ));
 
     spawn_orbit(
         commands,
@@ -222,4 +195,94 @@ fn spawn_planet(
         },
         planet.colour.with_alpha(0.3),
     );
+
+    spawn_planet_hud(commands, planet_id, &planet.name, planet.colour, 9.0);
+}
+
+fn spawn_planet_hud(
+    commands: &mut Commands,
+    target: Entity,
+    name: &str,
+    colour: Color,
+    font_size: f32,
+) {
+    commands
+        .spawn((
+            DespawnOnExit(AppState::Simulator),
+            PlanetHUD { target },
+            Node {
+                position_type: PositionType::Absolute,
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(2.0),
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    PlanetIndicator,
+                    ForPlanet(target),
+                    BaseColor(colour),
+                    Node {
+                        width: Val::Px(INDICATOR_SIZE),
+                        height: Val::Px(INDICATOR_SIZE),
+                        border_radius: BorderRadius::all(Val::Percent(50.0)),
+                        ..default()
+                    },
+                    BackgroundColor(colour.with_alpha(0.6)),
+                ))
+                .observe(on_indicator_over)
+                .observe(on_indicator_out)
+                .observe(on_hud_click);
+
+            parent
+                .spawn((
+                    ForPlanet(target),
+                    Text::new(name.to_string()),
+                    TextFont { font_size, ..default() },
+                    TextColor(Color::WHITE.with_alpha(0.7)),
+                    Node::default(),
+                ))
+                .observe(on_label_over)
+                .observe(on_label_out)
+                .observe(on_hud_click);
+        });
+}
+
+fn on_hud_click(ev: On<Pointer<Click>>, query: Query<&ForPlanet>, mut commands: Commands) {
+    if let Ok(for_planet) = query.get(ev.entity) {
+        commands.trigger(PlanetClicked { planet: for_planet.0 });
+    }
+}
+
+fn on_indicator_over(
+    ev: On<Pointer<Over>>,
+    mut query: Query<(&mut BackgroundColor, &BaseColor)>,
+) {
+    if let Ok((mut bg, base)) = query.get_mut(ev.entity) {
+        bg.0 = base.0;
+    }
+}
+
+fn on_indicator_out(
+    ev: On<Pointer<Out>>,
+    mut query: Query<(&mut BackgroundColor, &BaseColor)>,
+) {
+    if let Ok((mut bg, base)) = query.get_mut(ev.entity) {
+        bg.0 = base.0.with_alpha(0.6);
+    }
+}
+
+fn on_label_over(ev: On<Pointer<Over>>, mut query: Query<&mut TextColor>) {
+    if let Ok(mut color) = query.get_mut(ev.entity) {
+        color.0 = Color::WHITE;
+    }
+}
+
+fn on_label_out(ev: On<Pointer<Out>>, mut query: Query<&mut TextColor>) {
+    if let Ok(mut color) = query.get_mut(ev.entity) {
+        color.0 = Color::WHITE.with_alpha(0.7);
+    }
 }

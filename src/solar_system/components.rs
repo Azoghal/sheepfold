@@ -1,5 +1,6 @@
 use bevy::{
-    ecs::{component::Component, entity::Entity},
+    color::Color,
+    ecs::{component::Component, entity::Entity, event::Event},
     math::Vec2,
 };
 
@@ -18,8 +19,22 @@ pub(crate) struct CelestialBody;
 pub(crate) struct Name(pub(crate) String);
 
 #[derive(Component)]
-pub(crate) struct ScreenLabel {
+pub(crate) struct PlanetHUD {
     pub(crate) target: Entity,
+}
+
+#[derive(Component)]
+pub(crate) struct PlanetIndicator;
+
+#[derive(Component)]
+pub(crate) struct ForPlanet(pub(crate) Entity);
+
+#[derive(Component, Clone, Copy)]
+pub(crate) struct BaseColor(pub(crate) Color);
+
+#[derive(Event, Debug)]
+pub(crate) struct PlanetClicked {
+    pub(crate) planet: Entity,
 }
 
 // Orbit is oversimplified for now, always a circle.

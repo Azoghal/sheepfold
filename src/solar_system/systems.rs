@@ -1,12 +1,12 @@
 use std::f32::consts::TAU;
 
+const INDICATOR_HALF_SIZE: f32 = 5.0;
+
 use bevy::{
     app::AppExit,
     camera::{Camera, Projection},
     ecs::{
-        message::MessageWriter,
-        query::With,
-        system::{Commands, Query, Res, ResMut, Single},
+        entity::Entity, message::MessageWriter, observer::On, query::With, system::{Commands, Query, Res, ResMut, Single}
     },
     input::{ButtonInput, keyboard::KeyCode},
     sprite_render::MeshMaterial2d,
@@ -19,10 +19,14 @@ use bevy::{
 
 use bevy_egui::{EguiContexts, egui};
 
-use crate::{AppState, materials::OrbitMaterial, resources::{OrbitLineWidthPx, PreviousAppState}};
+use crate::{
+    AppState,
+    materials::OrbitMaterial,
+    resources::{OrbitLineWidthPx, PreviousAppState}, solar_system::components::Name,
+};
 
 use super::components::{
-    CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
+    CelestialBody, DebugUI, OrbitEllipse, Orbiter, PlanetClicked, PlanetHUD, TooltipText,
 };
 use super::resources::{CameraController, OrbitRunner};
 
@@ -33,6 +37,22 @@ pub(super) fn apply_camera_scale(
     let mut projection = camera_query.into_inner();
     if let Projection::Orthographic(projection2d) = &mut *projection {
         projection2d.scale = camera_controller.scale;
+    }
+}
+
+pub(super) fn follow_camera_target(
+    camera_controller: Res<CameraController>,
+    targets: Query<&GlobalTransform>,
+    camera_query: Single<(&Camera, &mut Transform)>,
+) {
+    // get optional target out of camera target, update camera to move with it.
+    if let Some(target) = camera_controller.target {
+        if let Ok(target_transform) = targets.get(target) {
+            let (_, mut transform) = camera_query.into_inner();
+            let target_pos = target_transform.translation();
+            transform.translation.x = target_pos.x;
+            transform.translation.y = target_pos.y;
+        }
     }
 }
 
@@ -76,6 +96,28 @@ pub(super) fn view_control_ui(
                 }
                 if ui.button("Zoom In (=)").clicked() {
                     camera_controller.zoom_in();
+                }
+            });
+        }
+        Err(e) => println!("Error finding egui context {0}", e),
+    }
+}
+
+pub(super) fn body_follow_ui(
+    mut contexts: EguiContexts,
+    body_query: Query<(Entity, &Name), With<CelestialBody>>,
+    mut camera_controller: ResMut<CameraController>,
+) {
+    match contexts.ctx_mut() {
+        Ok(context) => {
+            egui::Window::new("Celestial Bodies").show(context, |ui| {
+                if ui.button("Reset").clicked() {
+                    camera_controller.target = None;
+                }
+                for (id, body_name) in body_query.iter() {
+                    if ui.button(body_name.0.to_string()).clicked() {
+                        camera_controller.target = Some(id);
+                    }
                 }
             });
         }
@@ -155,32 +197,35 @@ pub(super) fn draw_mouse_tooltip(
     }
 }
 
-pub(super) fn update_screen_labels(
-    mut labels: Query<(&mut Node, &ComputedNode, &ScreenLabel, &mut Text)>,
-    targets: Query<(&GlobalTransform, Option<&Name>)>,
+pub(super) fn update_planet_huds(
+    mut huds: Query<(&mut Node, &ComputedNode, &PlanetHUD)>,
+    targets: Query<&GlobalTransform>,
     camera_query: Single<(&Camera, &GlobalTransform)>,
 ) {
     let (camera, camera_transform) = *camera_query;
 
-    for (mut screen_label_node, computed_node, label, mut text) in labels.iter_mut() {
-        let Ok(target) = targets.get(label.target) else {
+    for (mut node, computed_node, hud) in huds.iter_mut() {
+        let Ok(target_transform) = targets.get(hud.target) else {
             continue;
         };
 
-        let (target_transform, target_name) = target;
-
-        if let Some(name) = target_name {
-            text.0 = name.0.clone();
-        }
-
         let world_position = target_transform.translation();
-        let half_size = computed_node.size() / 2.0;
+        let half_width = computed_node.size().x / 2.0;
 
-        if let Ok(viewport_position) = camera.world_to_viewport(camera_transform, world_position) {
-            screen_label_node.left = px(viewport_position.x - half_size.x);
-            screen_label_node.top = px(viewport_position.y + half_size.y);
+        if let Ok(viewport_pos) = camera.world_to_viewport(camera_transform, world_position) {
+            // Centre the container horizontally on the planet.
+            // Shift up by half the indicator diameter so the circle sits on the planet position.
+            node.left = px(viewport_pos.x - half_width);
+            node.top = px(viewport_pos.y - INDICATOR_HALF_SIZE);
         }
     }
+}
+
+pub(super) fn on_planet_clicked(
+    event: On<PlanetClicked>,
+    mut camera_controller: ResMut<CameraController>,
+) {
+    camera_controller.target = Some(event.planet);
 }
 
 pub(super) fn update_orbit_line_display(
