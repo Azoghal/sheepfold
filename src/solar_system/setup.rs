@@ -6,7 +6,7 @@ use bevy::{
     ecs::{
         entity::Entity,
         query::With,
-        system::{Commands, Query, ResMut, Single},
+        system::{Commands, Query, Res, ResMut, Single},
     },
     math::{
         Vec2,
@@ -23,6 +23,7 @@ use bevy::{
 
 use crate::{
     materials::OrbitMaterial,
+    resources::PlanetScaleMultiplier,
     units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers},
 };
 
@@ -45,7 +46,6 @@ pub(super) fn teardown_simulator(
 }
 use super::resources::CameraController;
 
-const PLANET_DRAW_SCALE: f32 = 100.0;
 
 pub(super) fn default_viewport_scale(
     window: Single<&Window>,
@@ -116,11 +116,14 @@ pub(super) fn add_planets(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
+    planet_scale: Res<PlanetScaleMultiplier>,
 ) {
+    let scale = planet_scale.value();
+
     let shamhat = PlanetSpec {
         name: "Shamhat".to_string(),
         colour: Color::hsl(0.0, 0.85, 0.75),
-        radius: Kilometers::from(3500.0 * PLANET_DRAW_SCALE),
+        radius: Kilometers::from(3500.0 * scale),
         orbit_radius: ASTRONOMICAL_UNIT * 0.4,
         orbit_period: 30. * 24. * 60. * 60.,
     };
@@ -128,7 +131,7 @@ pub(super) fn add_planets(
     let enkidu = PlanetSpec {
         name: "Enkidu".to_string(),
         colour: Color::hsl(240.0, 0.75, 0.75),
-        radius: Kilometers::from(6371.0 * PLANET_DRAW_SCALE),
+        radius: Kilometers::from(6371.0 * scale),
         orbit_radius: ASTRONOMICAL_UNIT * 1.0,
         orbit_period: 365. * 24. * 60. * 60.,
     };
@@ -136,7 +139,7 @@ pub(super) fn add_planets(
     let humbaba = PlanetSpec {
         name: "Humbaba".to_string(),
         colour: Color::hsl(120.0, 0.75, 0.75),
-        radius: Kilometers::from(4000.0 * PLANET_DRAW_SCALE),
+        radius: Kilometers::from(4000.0 * scale),
         orbit_radius: ASTRONOMICAL_UNIT * 1.7,
         orbit_period: 710. * 24. * 60. * 60.,
     };

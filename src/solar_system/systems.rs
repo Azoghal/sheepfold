@@ -19,7 +19,7 @@ use bevy::{
 
 use bevy_egui::{EguiContexts, egui};
 
-use crate::{AppState, materials::OrbitMaterial, resources::PreviousAppState};
+use crate::{AppState, materials::OrbitMaterial, resources::{OrbitLineWidthPx, PreviousAppState}};
 
 use super::components::{
     CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
@@ -186,11 +186,13 @@ pub(super) fn update_screen_labels(
 pub(super) fn update_orbit_line_display(
     mut orbit_materials: ResMut<bevy::asset::Assets<OrbitMaterial>>,
     camera_controller: Res<CameraController>,
+    line_width: Res<OrbitLineWidthPx>,
     orbit_query: Query<(&OrbitEllipse, &MeshMaterial2d<OrbitMaterial>)>,
 ) {
     for (_ellipse, material_handle) in &orbit_query {
         if let Some(material) = orbit_materials.get_mut(material_handle) {
             material.world_per_pixel = camera_controller.scale;
+            material.line_width_px = line_width.value();
         }
     }
 }
