@@ -1,32 +1,39 @@
 use bevy::{
-    app::{App, Plugin, Startup},
+    app::{App, Plugin},
     camera::Projection,
     ecs::{
-        schedule::IntoScheduleConfigs,
+        schedule::{IntoScheduleConfigs, SystemSet},
         system::{Res, ResMut, Single},
     },
-    state::{condition::in_state, state::NextState},
+    state::{
+        condition::in_state,
+        state::{NextState, OnEnter},
+    },
 };
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
 use crate::{
-    resources::{OrbitLineWidthPx, PlanetScaleMultiplier, PreviousAppState},
     AppState,
+    resources::{OrbitLineWidthPx, PlanetScaleMultiplier, PreviousAppState},
 };
 
 pub(super) struct SettingsPlugin;
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+struct SettingsSet;
+
 impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.configure_sets(
             EguiPrimaryContextPass,
-            settings_ui.run_if(in_state(AppState::Settings)),
+            SettingsSet.run_if(in_state(AppState::Settings)),
         )
-        .add_systems(Startup, default_viewport_scale);
+        .add_systems(OnEnter(AppState::Settings), reset_viewport_scale)
+        .add_systems(EguiPrimaryContextPass, settings_ui.in_set(SettingsSet));
     }
 }
 
-fn default_viewport_scale(camera_query: Single<&mut Projection>) {
+fn reset_viewport_scale(camera_query: Single<&mut Projection>) {
     let mut projection = camera_query.into_inner();
     if let Projection::Orthographic(projection2d) = &mut *projection {
         projection2d.scale = 1.0;
@@ -47,13 +54,19 @@ fn settings_ui(
 
                 ui.label("Orbit line width (px)");
                 let mut width = orbit_line_width.value();
-                if ui.add(bevy_egui::egui::Slider::new(&mut width, 0.1..=5.0)).changed() {
+                if ui
+                    .add(bevy_egui::egui::Slider::new(&mut width, 0.1..=5.0))
+                    .changed()
+                {
                     orbit_line_width.set(width);
                 }
 
                 ui.label("Planet scale multiplier");
                 let mut scale = planet_scale.value();
-                if ui.add(bevy_egui::egui::Slider::new(&mut scale, 1.0..=1000.0)).changed() {
+                if ui
+                    .add(bevy_egui::egui::Slider::new(&mut scale, 1.0..=1000.0))
+                    .changed()
+                {
                     planet_scale.set(scale);
                 }
 

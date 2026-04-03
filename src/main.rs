@@ -1,5 +1,12 @@
 use bevy::{
-    DefaultPlugins, app::{App, Startup}, camera::{Camera, Camera2d, ClearColorConfig, Viewport}, color::Color, ecs::system::{Commands, Single}, state::{app::AppExtStates, state::States}, utils::default, window::Window
+    DefaultPlugins,
+    app::{App, Startup},
+    camera::{Camera, Camera2d, ClearColorConfig, Viewport},
+    color::Color,
+    ecs::system::{Commands, Single},
+    state::{app::AppExtStates, state::States},
+    utils::default,
+    window::Window,
 };
 use bevy_egui::{EguiPlugin, PrimaryEguiContext};
 

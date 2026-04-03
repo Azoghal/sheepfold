@@ -3,17 +3,14 @@ use std::f32::consts::TAU;
 use bevy::{
     asset::Assets,
     color::{Alpha, Color, LinearRgba},
-    ecs::{
-        entity::Entity,
-        query::With,
-        system::{Commands, Query, Res, ResMut, Single},
-    },
+    ecs::system::{Commands, Res, ResMut, Single},
     math::{
         Vec2,
         primitives::{Circle, Rectangle},
     },
     mesh::{Mesh, Mesh2d},
     sprite_render::{ColorMaterial, MeshMaterial2d},
+    state::state_scoped::DespawnOnExit,
     text::TextFont,
     transform::components::Transform,
     ui::{Display, Node, PositionType, widget::Text},
@@ -22,6 +19,7 @@ use bevy::{
 };
 
 use crate::{
+    AppState,
     materials::OrbitMaterial,
     resources::PlanetScaleMultiplier,
     units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers},
@@ -30,22 +28,7 @@ use crate::{
 use super::components::{
     CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
 };
-
-// TODO can tidy this up by adding a new component on each of these things to mark
-// them as being in need of teardown.
-pub(super) fn teardown_simulator(
-    mut commands: Commands,
-    celestial_bodies: Query<Entity, With<CelestialBody>>,
-    orbit_ellipses: Query<Entity, With<OrbitEllipse>>,
-    screen_labels: Query<Entity, With<ScreenLabel>>,
-    debug_ui: Query<Entity, With<DebugUI>>,
-) {
-    for entity in celestial_bodies.iter().chain(orbit_ellipses.iter()).chain(screen_labels.iter()).chain(debug_ui.iter()) {
-        commands.entity(entity).despawn();
-    }
-}
 use super::resources::CameraController;
-
 
 pub(super) fn default_viewport_scale(
     window: Single<&Window>,
@@ -57,6 +40,7 @@ pub(super) fn default_viewport_scale(
 
 pub(super) fn setup_mouse_tooltip(mut commands: Commands) {
     commands.spawn((
+        DespawnOnExit(AppState::Simulator),
         DebugUI,
         TooltipText,
         Text::new("x,y"),
@@ -80,6 +64,7 @@ pub(super) fn add_star(
 
     let enlil_id = commands
         .spawn((
+            DespawnOnExit(AppState::Simulator),
             CelestialBody,
             Name(name.to_string()),
             Mesh2d(enlil_shape),
@@ -89,6 +74,7 @@ pub(super) fn add_star(
         .id();
 
     commands.spawn((
+        DespawnOnExit(AppState::Simulator),
         Text::new(name.to_string()),
         TextFont {
             font_size: 14.0,
@@ -175,6 +161,7 @@ fn spawn_orbit(
     });
 
     commands.spawn((
+        DespawnOnExit(AppState::Simulator),
         Transform::from_translation(ellipse.center.extend(-0.1)),
         Mesh2d(meshes.add(Rectangle::new(safe_size, safe_size))),
         MeshMaterial2d(material),
@@ -195,6 +182,7 @@ fn spawn_planet(
 
     let planet_id = commands
         .spawn((
+            DespawnOnExit(AppState::Simulator),
             CelestialBody,
             Name(planet.name.to_string()),
             Orbiter {
@@ -209,6 +197,7 @@ fn spawn_planet(
         .id();
 
     commands.spawn((
+        DespawnOnExit(AppState::Simulator),
         Text::new(planet.name.to_string()),
         TextFont {
             font_size: 9.0,

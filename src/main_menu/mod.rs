@@ -1,30 +1,37 @@
 use bevy::{
-    app::{App, AppExit, Plugin, Startup},
+    app::{App, AppExit, Plugin},
     camera::Projection,
     ecs::{
         message::MessageWriter,
-        schedule::IntoScheduleConfigs,
+        schedule::{IntoScheduleConfigs, SystemSet},
         system::{Commands, ResMut, Single},
     },
-    state::{condition::in_state, state::NextState},
+    state::{
+        condition::in_state,
+        state::{NextState, OnEnter},
+    },
 };
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
-use crate::{resources::PreviousAppState, AppState};
+use crate::{AppState, resources::PreviousAppState};
 
 pub(super) struct MainMenuPlugin;
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+struct MainMenuSet;
+
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.configure_sets(
             EguiPrimaryContextPass,
-            main_menu_ui.run_if(in_state(AppState::MainMenu)),
+            MainMenuSet.run_if(in_state(AppState::MainMenu)),
         )
-        .add_systems(Startup, default_viewport_scale);
+        .add_systems(OnEnter(AppState::MainMenu), reset_viewport_scale)
+        .add_systems(EguiPrimaryContextPass, main_menu_ui.in_set(MainMenuSet));
     }
 }
 
-fn default_viewport_scale(camera_query: Single<&mut Projection>) {
+fn reset_viewport_scale(camera_query: Single<&mut Projection>) {
     let mut projection = camera_query.into_inner();
     if let Projection::Orthographic(projection2d) = &mut *projection {
         projection2d.scale = 1.0;
