@@ -6,7 +6,7 @@ mod systems;
 use bevy::{
     app::{App, FixedUpdate, Plugin, PostUpdate, Update},
     ecs::schedule::IntoScheduleConfigs,
-    state::{condition::in_state, state::OnEnter},
+    state::{condition::in_state, state::{OnEnter, OnExit}},
     transform::TransformSystems,
 };
 use bevy_egui::EguiPrimaryContextPass;
@@ -18,7 +18,7 @@ use crate::{
 };
 
 use resources::{new_camera_controller, new_orbit_timer};
-use setup::{add_planets, add_star, default_viewport_scale, setup_mouse_tooltip};
+use setup::{add_planets, add_star, default_viewport_scale, setup_mouse_tooltip, teardown_simulator};
 use systems::{
     apply_camera_scale, camera_controls_system, debug_control_ui, draw_mouse_tooltip,
     move_celestial_body, orbit_runner_keyboard_controls_system, time_control_ui,
@@ -73,6 +73,7 @@ impl Plugin for SolarSystemPlugin {
             .add_systems(
                 FixedUpdate,
                 move_celestial_body.run_if(in_state(AppState::Simulator)),
-            );
+            )
+            .add_systems(OnExit(AppState::Simulator), teardown_simulator);
     }
 }

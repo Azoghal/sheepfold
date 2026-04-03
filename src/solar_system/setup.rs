@@ -3,7 +3,11 @@ use std::f32::consts::TAU;
 use bevy::{
     asset::Assets,
     color::{Alpha, Color, LinearRgba},
-    ecs::system::{Commands, ResMut, Single},
+    ecs::{
+        entity::Entity,
+        query::With,
+        system::{Commands, Query, ResMut, Single},
+    },
     math::{
         Vec2,
         primitives::{Circle, Rectangle},
@@ -25,6 +29,18 @@ use crate::{
 use super::components::{
     CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
 };
+
+pub(super) fn teardown_simulator(
+    mut commands: Commands,
+    celestial_bodies: Query<Entity, With<CelestialBody>>,
+    orbit_ellipses: Query<Entity, With<OrbitEllipse>>,
+    screen_labels: Query<Entity, With<ScreenLabel>>,
+    debug_ui: Query<Entity, With<DebugUI>>,
+) {
+    for entity in celestial_bodies.iter().chain(orbit_ellipses.iter()).chain(screen_labels.iter()).chain(debug_ui.iter()) {
+        commands.entity(entity).despawn();
+    }
+}
 use super::resources::CameraController;
 
 const PLANET_DRAW_SCALE: f32 = 100.0;
