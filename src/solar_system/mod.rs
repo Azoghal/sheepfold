@@ -14,10 +14,11 @@ use bevy_egui::EguiPrimaryContextPass;
 use crate::{
     AppState,
     materials::{DebugMaterialsPlugin, OrbitMaterialPlugin},
+    solar_system::systems::game_menu_ui,
 };
 
 use resources::{new_camera_controller, new_orbit_timer};
-use setup::{add_planets, add_star, default_viewport_scale, setup_mouse_tooltip, setup_viewport};
+use setup::{add_planets, add_star, default_viewport_scale, setup_mouse_tooltip};
 use systems::{
     apply_camera_scale, camera_controls_system, debug_control_ui, draw_mouse_tooltip,
     move_celestial_body, orbit_runner_keyboard_controls_system, time_control_ui,
@@ -35,14 +36,19 @@ impl Plugin for SolarSystemPlugin {
             .insert_resource(new_camera_controller())
             .add_systems(
                 EguiPrimaryContextPass,
-                (time_control_ui, view_control_ui, debug_control_ui)
+                (
+                    time_control_ui,
+                    view_control_ui,
+                    debug_control_ui,
+                    game_menu_ui,
+                )
                     .run_if(in_state(AppState::Simulator)),
             )
             .add_systems(
                 OnEnter(AppState::Simulator),
                 (
                     (add_star, add_planets).chain(),
-                    (setup_viewport, default_viewport_scale).chain(),
+                    default_viewport_scale,
                     setup_mouse_tooltip,
                 ),
             )

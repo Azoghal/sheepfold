@@ -2,7 +2,6 @@ use std::f32::consts::TAU;
 
 use bevy::{
     asset::Assets,
-    camera::{Camera, Camera2d, ClearColorConfig, Viewport},
     color::{Alpha, Color, LinearRgba},
     ecs::system::{Commands, ResMut, Single},
     math::{
@@ -18,8 +17,6 @@ use bevy::{
     window::Window,
 };
 
-use bevy_egui::PrimaryEguiContext;
-
 use crate::{
     materials::OrbitMaterial,
     units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers},
@@ -31,24 +28,6 @@ use super::components::{
 use super::resources::CameraController;
 
 const PLANET_DRAW_SCALE: f32 = 100.0;
-
-pub(super) fn setup_viewport(mut commands: Commands, window: Single<&Window>) {
-    let window_size = window.resolution.physical_size().as_vec2();
-
-    commands.spawn((
-        PrimaryEguiContext,
-        Camera2d,
-        Camera {
-            viewport: Some(Viewport {
-                physical_position: (window_size * 0.0).as_uvec2(),
-                physical_size: (window_size * 1.0).as_uvec2(),
-                ..default()
-            }),
-            clear_color: ClearColorConfig::Custom(Color::BLACK),
-            ..default()
-        },
-    ));
-}
 
 pub(super) fn default_viewport_scale(
     window: Single<&Window>,

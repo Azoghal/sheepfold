@@ -1,16 +1,12 @@
 use bevy::{
     app::{App, AppExit, Plugin, Startup},
-    camera::{Camera, Camera2d, ClearColorConfig, Viewport},
-    color::Color,
+    camera::Projection,
     ecs::{
         message::MessageWriter,
         schedule::IntoScheduleConfigs,
-        system::{Commands, ResMut, Single},
+        system::{ResMut, Single},
     },
-    state::{condition::in_state, state::NextState, state_scoped::DespawnOnExit},
-    ui::{Node, PositionType, widget::Text},
-    utils::default,
-    window::Window,
+    state::{condition::in_state, state::NextState},
 };
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
@@ -24,35 +20,15 @@ impl Plugin for MainMenuPlugin {
             EguiPrimaryContextPass,
             main_menu_ui.run_if(in_state(AppState::MainMenu)),
         )
-        .add_systems(Startup, menu_setup);
+        .add_systems(Startup, default_viewport_scale);
     }
 }
 
-fn menu_setup(mut commands: Commands, window: Single<&Window>) {
-    let window_size = window.resolution.physical_size().as_vec2();
-
-    commands.spawn((
-        DespawnOnExit(AppState::MainMenu),
-        Camera2d,
-        Camera {
-            viewport: Some(Viewport {
-                physical_position: (window_size * 0.0).as_uvec2(),
-                physical_size: (window_size * 1.0).as_uvec2(),
-                ..default()
-            }),
-            clear_color: ClearColorConfig::Custom(Color::BLACK),
-            ..default()
-        },
-    ));
-
-    commands.spawn((
-        DespawnOnExit(AppState::MainMenu),
-        Text::new("hello"),
-        Node {
-            position_type: PositionType::Absolute,
-            ..default()
-        },
-    ));
+fn default_viewport_scale(camera_query: Single<&mut Projection>) {
+    let mut projection = camera_query.into_inner();
+    if let Projection::Orthographic(projection2d) = &mut *projection {
+        projection2d.scale = 1.0;
+    }
 }
 
 fn main_menu_ui(
@@ -62,7 +38,6 @@ fn main_menu_ui(
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
-            println!("running main menu ui");
             bevy_egui::egui::CentralPanel::default().show(context, |ui| {
                 ui.heading("Sheepfold");
                 if ui.button("Start Simulator").clicked() {

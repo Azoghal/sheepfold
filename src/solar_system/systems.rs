@@ -1,13 +1,16 @@
 use std::f32::consts::TAU;
 
 use bevy::{
+    app::AppExit,
     camera::{Camera, Projection},
     ecs::{
+        message::MessageWriter,
         query::With,
         system::{Query, Res, ResMut, Single},
     },
     input::{ButtonInput, keyboard::KeyCode},
     sprite_render::MeshMaterial2d,
+    state::state::NextState,
     time::{Fixed, Time},
     transform::components::{GlobalTransform, Transform},
     ui::{ComputedNode, Display, Node, px, widget::Text},
@@ -16,7 +19,7 @@ use bevy::{
 
 use bevy_egui::{EguiContexts, egui};
 
-use crate::materials::OrbitMaterial;
+use crate::{AppState, materials::OrbitMaterial};
 
 use super::components::{
     CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
@@ -36,7 +39,6 @@ pub(super) fn apply_camera_scale(
 pub(super) fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRunner>) {
     match contexts.ctx_mut() {
         Ok(context) => {
-            println!("running time control ui");
             egui::Window::new("Time").show(context, |ui| {
                 if orbit_runner.paused {
                     ui.label("PAUSED");
@@ -68,7 +70,6 @@ pub(super) fn view_control_ui(
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
-            println!("running view control ui");
             egui::Window::new("View").show(context, |ui| {
                 if ui.button("Zoom Out (-)").clicked() {
                     camera_controller.zoom_out();
@@ -89,12 +90,31 @@ pub(super) fn debug_control_ui(
     match contexts.ctx_mut() {
         Ok(context) => {
             egui::Window::new("Debug").show(context, |ui| {
-                println!("running debug ui");
                 if ui.button("Show All").clicked() {
                     set_all_debug_ui_visible(true, &mut debug_ui_query);
                 }
                 if ui.button("Hide All").clicked() {
                     set_all_debug_ui_visible(false, &mut debug_ui_query);
+                }
+            });
+        }
+        Err(e) => println!("Error finding egui context {0}", e),
+    }
+}
+
+pub(super) fn game_menu_ui(
+    mut contexts: EguiContexts,
+    mut app_exit_writer: MessageWriter<AppExit>,
+    mut app_state: ResMut<NextState<AppState>>,
+) {
+    match contexts.ctx_mut() {
+        Ok(context) => {
+            egui::Window::new("Game").show(context, |ui| {
+                if ui.button("Main Menu").clicked() {
+                    app_state.set(AppState::MainMenu);
+                }
+                if ui.button("Quit to Desktop").clicked() {
+                    app_exit_writer.write(AppExit::Success);
                 }
             });
         }
