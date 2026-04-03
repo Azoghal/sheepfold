@@ -8,6 +8,7 @@ mod resources;
 mod units;
 
 mod main_menu;
+mod settings;
 mod solar_system;
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
@@ -15,6 +16,7 @@ enum AppState {
     #[default]
     MainMenu,
     Simulator,
+    Settings,
 }
 
 fn main() {
@@ -26,6 +28,7 @@ fn main() {
         .init_state::<AppState>()
         .add_systems(Startup, setup_viewport)
         .add_plugins(main_menu::MainMenuPlugin)
+        .add_plugins(settings::SettingsPlugin)
         .add_plugins(solar_system::SolarSystemPlugin)
         .run();
 }

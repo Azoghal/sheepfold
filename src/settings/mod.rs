@@ -1,24 +1,23 @@
 use bevy::{
-    app::{App, AppExit, Plugin, Startup},
+    app::{App,  Plugin, Startup},
     camera::Projection,
     ecs::{
-        message::MessageWriter,
         schedule::IntoScheduleConfigs,
-        system::{ResMut, Single},
+        system::{ ResMut, Single},
     },
-    state::{condition::in_state, state::NextState},
+    state::{condition::in_state, state::{NextState}},
 };
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
 use crate::AppState;
 
-pub(super) struct MainMenuPlugin;
+pub(super) struct SettingsPlugin;
 
-impl Plugin for MainMenuPlugin {
+impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             EguiPrimaryContextPass,
-            main_menu_ui.run_if(in_state(AppState::MainMenu)),
+            settings_ui.run_if(in_state(AppState::Settings)),
         )
         .add_systems(Startup, default_viewport_scale);
     }
@@ -31,23 +30,22 @@ fn default_viewport_scale(camera_query: Single<&mut Projection>) {
     }
 }
 
-fn main_menu_ui(
+// See https://github.com/bevyengine/bevy/commit/f8a9f296bf45584feb987d626dbf331ac9b01918
+// for easily getting previous state. Not in current release though
+fn settings_ui(
     mut contexts: EguiContexts,
-    mut app_exit_writer: MessageWriter<AppExit>,
     mut app_state: ResMut<NextState<AppState>>,
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
             bevy_egui::egui::CentralPanel::default().show(context, |ui| {
-                ui.heading("Sheepfold");
-                if ui.button("Start Simulator").clicked() {
-                    app_state.set(AppState::Simulator);
+                ui.heading("Settings");
+                if ui.button("Setting 1").clicked() {
+                    println!("gotta do something init")
                 }
-                if ui.button("Settings").clicked() {
-                    app_state.set(AppState::Settings);
-                }
-                if ui.button("Exit").clicked() {
-                    app_exit_writer.write(AppExit::Success);
+                if ui.button("Back").clicked() {
+                    // TODO send us back to the previous state rather than always the main menu
+                    app_state.set(AppState::MainMenu);
                 }
             });
         }
