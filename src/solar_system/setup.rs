@@ -30,6 +30,8 @@ use super::components::{
     CelestialBody, DebugUI, Name, OrbitEllipse, Orbiter, ScreenLabel, TooltipText,
 };
 
+// TODO can tidy this up by adding a new component on each of these things to mark
+// them as being in need of teardown.
 pub(super) fn teardown_simulator(
     mut commands: Commands,
     celestial_bodies: Query<Entity, With<CelestialBody>>,
