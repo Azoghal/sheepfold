@@ -3,18 +3,9 @@ use std::f32::consts::TAU;
 const INDICATOR_HALF_SIZE: f32 = 5.0;
 
 use bevy::{
-    app::AppExit,
-    camera::{Camera, Projection},
-    ecs::{
+    app::AppExit, camera::{Camera, Projection}, ecs::{
         entity::Entity, message::MessageWriter, observer::On, query::With, system::{Commands, Query, Res, ResMut, Single}
-    },
-    input::{ButtonInput, keyboard::KeyCode},
-    sprite_render::MeshMaterial2d,
-    state::state::NextState,
-    time::{Fixed, Time},
-    transform::components::{GlobalTransform, Transform},
-    ui::{ComputedNode, Display, Node, px, widget::Text},
-    window::Window,
+    }, input::{ButtonInput, keyboard::KeyCode}, sprite_render::MeshMaterial2d, state::state::NextState, time::{Fixed, Time}, transform::components::{GlobalTransform, Transform}, ui::{ComputedNode, Display, Node, px, widget::Text}, window::Window
 };
 
 use bevy_egui::{EguiContexts, egui};
@@ -46,14 +37,13 @@ pub(super) fn follow_camera_target(
     camera_query: Single<(&Camera, &mut Transform)>,
 ) {
     // get optional target out of camera target, update camera to move with it.
-    if let Some(target) = camera_controller.target {
-        if let Ok(target_transform) = targets.get(target) {
+    if let Some(target) = camera_controller.target
+        && let Ok(target_transform) = targets.get(target) {
             let (_, mut transform) = camera_query.into_inner();
             let target_pos = target_transform.translation();
             transform.translation.x = target_pos.x;
             transform.translation.y = target_pos.y;
         }
-    }
 }
 
 pub(super) fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRunner>) {
@@ -107,12 +97,16 @@ pub(super) fn body_follow_ui(
     mut contexts: EguiContexts,
     body_query: Query<(Entity, &Name), With<CelestialBody>>,
     mut camera_controller: ResMut<CameraController>,
+    camera_query: Single<(&Camera, &mut Transform)>
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
             egui::Window::new("Celestial Bodies").show(context, |ui| {
                 if ui.button("Reset").clicked() {
                     camera_controller.target = None;
+                    let (_, mut camera_transform) = camera_query.into_inner();
+                    camera_transform.translation.x = 0.0;
+                    camera_transform.translation.y = 0.0;
                 }
                 for (id, body_name) in body_query.iter() {
                     if ui.button(body_name.0.to_string()).clicked() {
