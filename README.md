@@ -3,6 +3,7 @@
 <!--toc:start-->
 - [Sheepfold](#sheepfold)
   - [Motivation](#motivation)
+    - [AI excuse](#ai-excuse)
 <!--toc:end-->
 
 Sheepfold is a solar system simulator written in Rust using the
