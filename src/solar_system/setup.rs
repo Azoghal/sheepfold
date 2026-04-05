@@ -19,8 +19,8 @@ use bevy::{
     text::{TextColor, TextFont},
     transform::components::Transform,
     ui::{
-        AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, Node, PositionType,
-        Val, widget::Text,
+        AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, Node, PositionType, Val,
+        widget::Text,
     },
     utils::default,
     window::Window,
@@ -63,11 +63,30 @@ pub(super) fn setup_mouse_tooltip(mut commands: Commands) {
     ));
 }
 
-pub(super) fn add_star(
+pub(super) fn setup_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
+    planet_scale: Res<PlanetScaleMultiplier>,
 ) {
+    let star_id = add_star(&mut commands, &mut meshes, &mut materials);
+
+    add_all_satellites(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        &mut orbit_materials,
+        planet_scale,
+        star_id,
+    );
+}
+
+fn add_star(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) -> Entity {
     let colour = Color::hsl(60.0, 0.75, 0.75);
     let name = "Enlil";
 
@@ -82,52 +101,73 @@ pub(super) fn add_star(
         ))
         .id();
 
-    spawn_planet_hud(&mut commands, star_id, name, colour, 14.0);
+    spawn_planet_hud(commands, star_id, name, colour, 14.0);
+
+    star_id
 }
 
-struct PlanetSpec {
+struct SatelliteSpec {
     name: String,
     colour: Color,
     radius: Kilometers,
     orbit_radius: Kilometers,
     orbit_period: f32, // seconds
+    satellites: Option<Vec<SatelliteSpec>>,
 }
 
-pub(super) fn add_planets(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
+fn add_all_satellites(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    orbit_materials: &mut ResMut<Assets<OrbitMaterial>>,
     planet_scale: Res<PlanetScaleMultiplier>,
+    star_id: Entity,
 ) {
     let scale = planet_scale.value();
 
     let planets = [
-        PlanetSpec {
+        SatelliteSpec {
             name: "Shamhat".to_string(),
             colour: Color::hsl(0.0, 0.85, 0.75),
             radius: Kilometers::from(3500.0 * scale),
             orbit_radius: ASTRONOMICAL_UNIT * 0.4,
             orbit_period: 30. * 24. * 60. * 60.,
+            satellites: None,
         },
-        PlanetSpec {
+        SatelliteSpec {
             name: "Enkidu".to_string(),
             colour: Color::hsl(240.0, 0.75, 0.75),
             radius: Kilometers::from(6371.0 * scale),
             orbit_radius: ASTRONOMICAL_UNIT * 1.0,
             orbit_period: 365. * 24. * 60. * 60.,
+            satellites: None,
         },
-        PlanetSpec {
+        SatelliteSpec {
             name: "Humbaba".to_string(),
             colour: Color::hsl(120.0, 0.75, 0.75),
             radius: Kilometers::from(4000.0 * scale),
             orbit_radius: ASTRONOMICAL_UNIT * 1.7,
             orbit_period: 710. * 24. * 60. * 60.,
+            satellites: Some(vec![SatelliteSpec {
+                name: "Inanna".to_string(),
+                colour: Color::hsl(180.0, 0.75, 0.75),
+                radius: Kilometers::from(400.0 * scale),
+                orbit_radius: Kilometers::from(40000.0),
+                orbit_period: 18. * 24. * 60. * 60.,
+                satellites: None,
+            }]),
         },
     ];
 
     for planet in planets {
-        spawn_planet(&mut commands, &mut meshes, &mut materials, &mut orbit_materials, planet);
+        spawn_satellite(
+            commands,
+            meshes,
+            materials,
+            orbit_materials,
+            planet,
+            star_id,
+        );
     }
 }
 
@@ -157,12 +197,13 @@ fn spawn_orbit(
     ));
 }
 
-fn spawn_planet(
+fn spawn_satellite(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     orbit_materials: &mut ResMut<Assets<OrbitMaterial>>,
-    planet: PlanetSpec,
+    planet: SatelliteSpec,
+    system_barycenter: Entity,
 ) {
     let polar_speed = TAU / planet.orbit_period;
     println!("{0}:{1}", planet.name, polar_speed);
@@ -173,13 +214,15 @@ fn spawn_planet(
             CelestialBody,
             Name(planet.name.to_string()),
             Orbiter {
+                barycentre_target: system_barycenter,
                 radius: planet.orbit_radius,
                 polar_speed,
                 polar_position: 0.0,
             },
             Mesh2d(meshes.add(Circle::new(planet.radius.into()))),
             MeshMaterial2d(materials.add(planet.colour)),
-            Transform::from_xyz(planet.orbit_radius.into(), 0.0, 0.0),
+            Transform::from_xyz(0.0, 0.0, 0.0), // all body locations sorted out in
+            // update.
         ))
         .id();
 
@@ -197,6 +240,19 @@ fn spawn_planet(
     );
 
     spawn_planet_hud(commands, planet_id, &planet.name, planet.colour, 9.0);
+
+    if let Some(satellites) = planet.satellites {
+        for satellite in satellites.into_iter() {
+            spawn_satellite(
+                commands,
+                meshes,
+                materials,
+                orbit_materials,
+                satellite,
+                planet_id,
+            );
+        }
+    }
 }
 
 fn spawn_planet_hud(
@@ -241,7 +297,10 @@ fn spawn_planet_hud(
                 .spawn((
                     ForPlanet(target),
                     Text::new(name.to_string()),
-                    TextFont { font_size, ..default() },
+                    TextFont {
+                        font_size,
+                        ..default()
+                    },
                     TextColor(Color::WHITE.with_alpha(0.7)),
                     Node::default(),
                 ))
@@ -253,23 +312,19 @@ fn spawn_planet_hud(
 
 fn on_hud_click(ev: On<Pointer<Click>>, query: Query<&ForPlanet>, mut commands: Commands) {
     if let Ok(for_planet) = query.get(ev.entity) {
-        commands.trigger(PlanetClicked { planet: for_planet.0 });
+        commands.trigger(PlanetClicked {
+            planet: for_planet.0,
+        });
     }
 }
 
-fn on_indicator_over(
-    ev: On<Pointer<Over>>,
-    mut query: Query<(&mut BackgroundColor, &BaseColor)>,
-) {
+fn on_indicator_over(ev: On<Pointer<Over>>, mut query: Query<(&mut BackgroundColor, &BaseColor)>) {
     if let Ok((mut bg, base)) = query.get_mut(ev.entity) {
         bg.0 = base.0;
     }
 }
 
-fn on_indicator_out(
-    ev: On<Pointer<Out>>,
-    mut query: Query<(&mut BackgroundColor, &BaseColor)>,
-) {
+fn on_indicator_out(ev: On<Pointer<Out>>, mut query: Query<(&mut BackgroundColor, &BaseColor)>) {
     if let Ok((mut bg, base)) = query.get_mut(ev.entity) {
         bg.0 = base.0.with_alpha(0.6);
     }

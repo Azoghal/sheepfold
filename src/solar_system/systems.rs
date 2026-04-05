@@ -5,7 +5,7 @@ const INDICATOR_HALF_SIZE: f32 = 5.0;
 use bevy::{
     app::AppExit, camera::{Camera, Projection}, ecs::{
         entity::Entity, message::MessageWriter, observer::On, query::With, system::{Commands, Query, Res, ResMut, Single}
-    }, input::{ButtonInput, keyboard::KeyCode}, sprite_render::MeshMaterial2d, state::state::NextState, time::{Fixed, Time}, transform::components::{GlobalTransform, Transform}, ui::{ComputedNode, Display, Node, px, widget::Text}, window::Window
+    }, input::{ButtonInput, keyboard::KeyCode}, math::vec3, sprite_render::MeshMaterial2d, state::state::NextState, time::{Fixed, Time}, transform::components::{GlobalTransform, Transform}, ui::{ComputedNode, Display, Node, px, widget::Text}, window::Window
 };
 
 use bevy_egui::{EguiContexts, egui};
@@ -270,20 +270,30 @@ pub(super) fn camera_controls_system(
 pub(super) fn move_celestial_body(
     time: Res<Time>,
     orbit_runner: Res<OrbitRunner>,
+    targets: Query<&GlobalTransform>,
     mut query: Query<(&mut Orbiter, &mut Transform), With<CelestialBody>>,
 ) {
     let simulated_time_delta_secs = time.delta_secs() * orbit_runner.timestep;
 
     if !orbit_runner.paused {
         for (mut orbiter, mut transform) in query.iter_mut() {
+
+            let mut barycentre = vec3(0.0, 0.0, 0.0);
+
+            if let Ok(barycenter_transform) = targets.get(orbiter.barycentre_target){
+                barycentre.x = barycenter_transform.translation().x;
+                barycentre.y = barycenter_transform.translation().y;
+            }
+            
             orbiter.polar_position += orbiter.polar_speed * simulated_time_delta_secs;
             if orbiter.polar_position > TAU {
                 orbiter.polar_position %= TAU
             }
-            let x = (orbiter.radius * orbiter.polar_position.cos()).into();
-            let y = (orbiter.radius * orbiter.polar_position.sin()).into();
-            transform.translation.x = x;
-            transform.translation.y = y;
+            let relative_x: f32 = (orbiter.radius * orbiter.polar_position.cos()).into();
+            let relative_y: f32 = (orbiter.radius * orbiter.polar_position.sin()).into();
+
+            transform.translation.x = barycentre.x + relative_x;
+            transform.translation.y = barycentre.y + relative_y;
         }
     }
 }

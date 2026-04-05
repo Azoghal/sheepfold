@@ -40,6 +40,7 @@ pub(crate) struct PlanetClicked {
 // Orbit is oversimplified for now, always a circle.
 #[derive(Component)]
 pub(crate) struct Orbiter {
+    pub(crate) barycentre_target: Entity, // for now, will just be the larget body.
     pub(crate) radius: Kilometers,
     pub(crate) polar_speed: f32,    // radians per second
     pub(crate) polar_position: f32, // radians
