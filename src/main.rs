@@ -31,7 +31,6 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(EguiPlugin::default())
         .insert_resource(resources::OrbitLineWidthPx::new(0.5))
-        .insert_resource(resources::PlanetScaleMultiplier::new(1.0))
         .init_state::<AppState>()
         .add_systems(Startup, setup_viewport)
         .add_plugins(main_menu::MainMenuPlugin)

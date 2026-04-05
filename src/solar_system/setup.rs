@@ -29,7 +29,6 @@ use bevy::{
 use crate::{
     AppState,
     materials::OrbitMaterial,
-    resources::PlanetScaleMultiplier,
     units::{ASTRONOMICAL_UNIT, INNER_SOLAR_SYSTEM_RADIUS, Kilometers},
 };
 
@@ -68,7 +67,6 @@ pub(super) fn setup_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut orbit_materials: ResMut<Assets<OrbitMaterial>>,
-    planet_scale: Res<PlanetScaleMultiplier>,
 ) {
     let star_id = add_star(&mut commands, &mut meshes, &mut materials);
 
@@ -77,7 +75,6 @@ pub(super) fn setup_system(
         &mut meshes,
         &mut materials,
         &mut orbit_materials,
-        planet_scale,
         star_id,
     );
 }
@@ -120,24 +117,29 @@ fn add_all_satellites(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     orbit_materials: &mut ResMut<Assets<OrbitMaterial>>,
-    planet_scale: Res<PlanetScaleMultiplier>,
     star_id: Entity,
 ) {
-    let scale = planet_scale.value();
-
     let planets = [
         SatelliteSpec {
             name: "Shamhat".to_string(),
             colour: Color::hsl(0.0, 0.85, 0.75),
-            radius: Kilometers::from(3500.0 * scale),
-            orbit_radius: ASTRONOMICAL_UNIT * 0.4,
-            orbit_period: 30. * 24. * 60. * 60.,
+            radius: Kilometers::from(2439.0),
+            orbit_radius: ASTRONOMICAL_UNIT * 0.387,
+            orbit_period: 88. * 24. * 60. * 60.,
+            satellites: None,
+        },
+        SatelliteSpec {
+            name: "Ninsun".to_string(),
+            colour: Color::hsl(60.0, 0.85, 0.75),
+            radius: Kilometers::from(3500.0),
+            orbit_radius: ASTRONOMICAL_UNIT * 0.387,
+            orbit_period: 88. * 24. * 60. * 60.,
             satellites: None,
         },
         SatelliteSpec {
             name: "Enkidu".to_string(),
             colour: Color::hsl(240.0, 0.75, 0.75),
-            radius: Kilometers::from(6371.0 * scale),
+            radius: Kilometers::from(6371.0),
             orbit_radius: ASTRONOMICAL_UNIT * 1.0,
             orbit_period: 365. * 24. * 60. * 60.,
             satellites: None,
@@ -145,13 +147,13 @@ fn add_all_satellites(
         SatelliteSpec {
             name: "Humbaba".to_string(),
             colour: Color::hsl(120.0, 0.75, 0.75),
-            radius: Kilometers::from(4000.0 * scale),
+            radius: Kilometers::from(4000.0),
             orbit_radius: ASTRONOMICAL_UNIT * 1.7,
             orbit_period: 710. * 24. * 60. * 60.,
             satellites: Some(vec![SatelliteSpec {
                 name: "Inanna".to_string(),
                 colour: Color::hsl(180.0, 0.75, 0.75),
-                radius: Kilometers::from(400.0 * scale),
+                radius: Kilometers::from(400.0),
                 orbit_radius: Kilometers::from(40000.0),
                 orbit_period: 18. * 24. * 60. * 60.,
                 satellites: None,
