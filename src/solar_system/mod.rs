@@ -26,7 +26,7 @@ use systems::{
     apply_camera_scale, camera_controls_system, debug_control_ui, draw_mouse_tooltip, game_menu_ui,
     move_primary_orbiters, move_sub_orbiters, on_planet_clicked,
     orbit_runner_keyboard_controls_system, time_control_ui, update_orbit_line_display,
-    update_planet_huds, view_control_ui,
+    update_planet_huds, update_satellite_orbit_centres, view_control_ui,
 };
 
 pub struct SolarSystemPlugin;
@@ -72,7 +72,13 @@ impl Plugin for SolarSystemPlugin {
                 FixedUpdate,
                 (
                     camera_controls_system,
-                    (move_primary_orbiters, move_sub_orbiters, follow_camera_target).chain(),
+                    (
+                        move_primary_orbiters,
+                        move_sub_orbiters,
+                        update_satellite_orbit_centres,
+                        follow_camera_target,
+                    )
+                        .chain(),
                 )
                     .in_set(SimulatorSet),
             )

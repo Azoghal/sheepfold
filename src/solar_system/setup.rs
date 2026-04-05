@@ -34,8 +34,8 @@ use crate::{
 };
 
 use super::components::{
-    BaseColor, CelestialBody, DebugUI, ForPlanet, Name, OrbitEllipse, Orbiter, PlanetClicked,
-    PlanetHUD, PlanetIndicator, SatelliteBody, TooltipText,
+    BaseColor, CelestialBody, DebugUI, FollowsBody, ForPlanet, Name, OrbitEllipse, Orbiter,
+    PlanetClicked, PlanetHUD, PlanetIndicator, SatelliteBody, TooltipText,
 };
 use super::resources::CameraController;
 
@@ -178,6 +178,7 @@ fn spawn_orbit(
     orbit_materials: &mut Assets<OrbitMaterial>,
     ellipse: OrbitEllipse,
     color: Color,
+    follows: Option<Entity>,
 ) {
     let safe_size = ellipse.semi_major * 2.2;
     let material = orbit_materials.add(OrbitMaterial {
@@ -189,13 +190,16 @@ fn spawn_orbit(
         line_width_px: 0.5,
         color: LinearRgba::from(color),
     });
-    commands.spawn((
+    let mut entity_cmd = commands.spawn((
         DespawnOnExit(AppState::Simulator),
         Transform::from_translation(ellipse.centre.extend(-0.1)),
         Mesh2d(meshes.add(Rectangle::new(safe_size, safe_size))),
         MeshMaterial2d(material),
         ellipse,
     ));
+    if let Some(body) = follows {
+        entity_cmd.insert(FollowsBody(body));
+    }
 }
 
 fn spawn_satellite(
@@ -240,6 +244,7 @@ fn spawn_satellite(
             rotation: 0.0,
         },
         planet.colour.with_alpha(0.3),
+        is_sub_satellite.then_some(system_barycentre),
     );
 
     spawn_planet_hud(commands, planet_id, &planet.name, planet.colour, 9.0);

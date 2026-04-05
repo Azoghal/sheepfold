@@ -49,6 +49,9 @@ pub(crate) struct Orbiter {
     pub(crate) polar_position: f32, // radians
 }
 
+#[derive(Component)]
+pub(crate) struct FollowsBody(pub(crate) Entity);
+
 #[derive(Component, Clone)]
 pub(crate) struct OrbitEllipse {
     pub(crate) centre: Vec2,

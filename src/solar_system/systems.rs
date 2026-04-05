@@ -32,7 +32,8 @@ use crate::{
 };
 
 use super::components::{
-    CelestialBody, DebugUI, OrbitEllipse, Orbiter, PlanetClicked, PlanetHUD, TooltipText,
+    CelestialBody, DebugUI, FollowsBody, OrbitEllipse, Orbiter, PlanetClicked, PlanetHUD,
+    TooltipText,
 };
 use super::resources::{CameraController, OrbitRunner};
 
@@ -296,7 +297,8 @@ fn tick_orbiters<BarycentreFilter, OrbiterFilter>(
         if let Ok(barycentre) = barycentres.get(orbiter.barycentre_target) {
             let barycentre_position = barycentre.translation.xy();
 
-            orbiter.polar_position = (orbiter.polar_position + orbiter.polar_speed * simulated_delta_time) % TAU;
+            orbiter.polar_position =
+                (orbiter.polar_position + orbiter.polar_speed * simulated_delta_time) % TAU;
             let radius: f32 = orbiter.radius.into();
             transform.translation.x = barycentre_position.x + radius * orbiter.polar_position.cos();
             transform.translation.y = barycentre_position.y + radius * orbiter.polar_position.sin();
@@ -310,8 +312,14 @@ pub(super) fn move_primary_orbiters(
     barycentres: Query<&Transform, Without<Orbiter>>,
     mut query: Query<(&mut Orbiter, &mut Transform), (With<CelestialBody>, Without<SatelliteBody>)>,
 ) {
-    if orbit_runner.paused { return; }
-    tick_orbiters(time.delta_secs() * orbit_runner.timestep, &barycentres, &mut query);
+    if orbit_runner.paused {
+        return;
+    }
+    tick_orbiters(
+        time.delta_secs() * orbit_runner.timestep,
+        &barycentres,
+        &mut query,
+    );
 }
 
 pub(super) fn move_sub_orbiters(
@@ -320,6 +328,41 @@ pub(super) fn move_sub_orbiters(
     barycentres: Query<&Transform, (With<CelestialBody>, Without<SatelliteBody>)>,
     mut query: Query<(&mut Orbiter, &mut Transform), With<SatelliteBody>>,
 ) {
-    if orbit_runner.paused { return; }
-    tick_orbiters(time.delta_secs() * orbit_runner.timestep, &barycentres, &mut query);
+    if orbit_runner.paused {
+        return;
+    }
+    tick_orbiters(
+        time.delta_secs() * orbit_runner.timestep,
+        &barycentres,
+        &mut query,
+    );
+}
+
+pub(super) fn update_satellite_orbit_centres(
+    planet_transforms: Query<
+        &Transform,
+        (
+            With<CelestialBody>,
+            Without<SatelliteBody>,
+            Without<FollowsBody>,
+        ),
+    >,
+    mut orbit_materials: ResMut<bevy::asset::Assets<OrbitMaterial>>,
+    mut orbit_query: Query<(
+        &mut OrbitEllipse,
+        &mut Transform,
+        &MeshMaterial2d<OrbitMaterial>,
+        &FollowsBody,
+    )>,
+) {
+    for (mut ellipse, mut transform, material_handle, follows) in orbit_query.iter_mut() {
+        if let Ok(planet_transform) = planet_transforms.get(follows.0) {
+            let new_centre = planet_transform.translation.xy();
+            ellipse.centre = new_centre;
+            transform.translation = new_centre.extend(-0.1);
+            if let Some(material) = orbit_materials.get_mut(material_handle) {
+                material.centre = new_centre;
+            }
+        }
+    }
 }
