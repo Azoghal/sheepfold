@@ -8,7 +8,7 @@ use bevy::{
 pub struct OrbitMaterial {
     /// Ellipse centre in world space.
     #[uniform(0)]
-    pub center: Vec2,
+    pub centre: Vec2,
     /// Semi-major axis in world units.
     #[uniform(0)]
     pub semi_major: f32,

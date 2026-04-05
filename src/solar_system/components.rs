@@ -16,6 +16,9 @@ pub(crate) struct TooltipText;
 pub(crate) struct CelestialBody;
 
 #[derive(Component)]
+pub(crate) struct SatelliteBody;
+
+#[derive(Component)]
 pub(crate) struct Name(pub(crate) String);
 
 #[derive(Component)]
@@ -40,14 +43,18 @@ pub(crate) struct PlanetClicked {
 // Orbit is oversimplified for now, always a circle.
 #[derive(Component)]
 pub(crate) struct Orbiter {
+    pub(crate) barycentre_target: Entity, // for now, will just be the larget body.
     pub(crate) radius: Kilometers,
     pub(crate) polar_speed: f32,    // radians per second
     pub(crate) polar_position: f32, // radians
 }
 
+#[derive(Component)]
+pub(crate) struct FollowsBody(pub(crate) Entity);
+
 #[derive(Component, Clone)]
 pub(crate) struct OrbitEllipse {
-    pub(crate) center: Vec2,
+    pub(crate) centre: Vec2,
     pub(crate) semi_major: f32,
     pub(crate) semi_minor: f32,
     /// Argument of periapsis in radians.

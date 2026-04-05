@@ -1,7 +1,7 @@
 #import bevy_sprite::mesh2d_vertex_output::VertexOutput
 
 struct OrbitMaterial {
-    center: vec2<f32>,
+    centre: vec2<f32>,
     semi_major: f32,
     semi_minor: f32,
     rotation: f32,
@@ -25,7 +25,7 @@ fn sdf_ellipse(p: vec2<f32>, ab: vec2<f32>) -> f32 {
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // Translate into ellipse-local frame and un-rotate.
-    let p = in.world_position.xy - material.center;
+    let p = in.world_position.xy - material.centre;
     let cos_r = cos(-material.rotation);
     let sin_r = sin(-material.rotation);
     let local = vec2<f32>(

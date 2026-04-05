@@ -14,7 +14,7 @@ use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
 use crate::{
     AppState,
-    resources::{OrbitLineWidthPx, PlanetScaleMultiplier, PreviousAppState},
+    resources::{OrbitLineWidthPx, PreviousAppState},
 };
 
 pub(super) struct SettingsPlugin;
@@ -45,7 +45,6 @@ fn settings_ui(
     mut app_state: ResMut<NextState<AppState>>,
     previous_state: Option<Res<PreviousAppState>>,
     mut orbit_line_width: ResMut<OrbitLineWidthPx>,
-    mut planet_scale: ResMut<PlanetScaleMultiplier>,
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
@@ -59,15 +58,6 @@ fn settings_ui(
                     .changed()
                 {
                     orbit_line_width.set(width);
-                }
-
-                ui.label("Planet scale multiplier");
-                let mut scale = planet_scale.value();
-                if ui
-                    .add(bevy_egui::egui::Slider::new(&mut scale, 1.0..=1000.0))
-                    .changed()
-                {
-                    planet_scale.set(scale);
                 }
 
                 if ui.button("Back").clicked() {
