@@ -16,6 +16,9 @@ pub(crate) struct TooltipText;
 pub(crate) struct CelestialBody;
 
 #[derive(Component)]
+pub(crate) struct SatelliteBody;
+
+#[derive(Component)]
 pub(crate) struct Name(pub(crate) String);
 
 #[derive(Component)]
@@ -48,7 +51,7 @@ pub(crate) struct Orbiter {
 
 #[derive(Component, Clone)]
 pub(crate) struct OrbitEllipse {
-    pub(crate) center: Vec2,
+    pub(crate) centre: Vec2,
     pub(crate) semi_major: f32,
     pub(crate) semi_minor: f32,
     /// Argument of periapsis in radians.

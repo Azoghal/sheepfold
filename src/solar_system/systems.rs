@@ -3,9 +3,23 @@ use std::f32::consts::TAU;
 const INDICATOR_HALF_SIZE: f32 = 5.0;
 
 use bevy::{
-    app::AppExit, camera::{Camera, Projection}, ecs::{
-        entity::Entity, message::MessageWriter, observer::On, query::With, system::{Commands, Query, Res, ResMut, Single}
-    }, input::{ButtonInput, keyboard::KeyCode}, math::vec3, sprite_render::MeshMaterial2d, state::state::NextState, time::{Fixed, Time}, transform::components::{GlobalTransform, Transform}, ui::{ComputedNode, Display, Node, px, widget::Text}, window::Window
+    app::AppExit,
+    camera::{Camera, Projection},
+    ecs::{
+        entity::Entity,
+        message::MessageWriter,
+        observer::On,
+        query::{With, Without},
+        system::{Commands, Query, Res, ResMut, Single},
+    },
+    input::{ButtonInput, keyboard::KeyCode},
+    math::Vec3Swizzles,
+    sprite_render::MeshMaterial2d,
+    state::state::NextState,
+    time::{Fixed, Time},
+    transform::components::{GlobalTransform, Transform},
+    ui::{ComputedNode, Display, Node, px, widget::Text},
+    window::Window,
 };
 
 use bevy_egui::{EguiContexts, egui};
@@ -13,7 +27,8 @@ use bevy_egui::{EguiContexts, egui};
 use crate::{
     AppState,
     materials::OrbitMaterial,
-    resources::{OrbitLineWidthPx, PreviousAppState}, solar_system::components::Name,
+    resources::{OrbitLineWidthPx, PreviousAppState},
+    solar_system::components::{Name, SatelliteBody},
 };
 
 use super::components::{
@@ -33,17 +48,19 @@ pub(super) fn apply_camera_scale(
 
 pub(super) fn follow_camera_target(
     camera_controller: Res<CameraController>,
-    targets: Query<&GlobalTransform>,
+    targets: Query<&Transform, Without<Camera>>,
     camera_query: Single<(&Camera, &mut Transform)>,
 ) {
-    // get optional target out of camera target, update camera to move with it.
+    // All celestial bodies are root entities so Transform.translation is their world position.
+    // Reading Transform (not GlobalTransform) here gives the current FixedUpdate position,
+    // avoiding the one-frame lag that comes from reading a stale GlobalTransform.
     if let Some(target) = camera_controller.target
-        && let Ok(target_transform) = targets.get(target) {
-            let (_, mut transform) = camera_query.into_inner();
-            let target_pos = target_transform.translation();
-            transform.translation.x = target_pos.x;
-            transform.translation.y = target_pos.y;
-        }
+        && let Ok(target_transform) = targets.get(target)
+    {
+        let (_, mut transform) = camera_query.into_inner();
+        transform.translation.x = target_transform.translation.x;
+        transform.translation.y = target_transform.translation.y;
+    }
 }
 
 pub(super) fn time_control_ui(mut contexts: EguiContexts, mut orbit_runner: ResMut<OrbitRunner>) {
@@ -97,7 +114,7 @@ pub(super) fn body_follow_ui(
     mut contexts: EguiContexts,
     body_query: Query<(Entity, &Name), With<CelestialBody>>,
     mut camera_controller: ResMut<CameraController>,
-    camera_query: Single<(&Camera, &mut Transform)>
+    camera_query: Single<(&Camera, &mut Transform)>,
 ) {
     match contexts.ctx_mut() {
         Ok(context) => {
@@ -267,33 +284,42 @@ pub(super) fn camera_controls_system(
     }
 }
 
-pub(super) fn move_celestial_body(
-    time: Res<Time>,
-    orbit_runner: Res<OrbitRunner>,
-    targets: Query<&GlobalTransform>,
-    mut query: Query<(&mut Orbiter, &mut Transform), With<CelestialBody>>,
-) {
-    let simulated_time_delta_secs = time.delta_secs() * orbit_runner.timestep;
+fn tick_orbiters<BarycentreFilter, OrbiterFilter>(
+    simulated_delta_time: f32,
+    barycentres: &Query<&Transform, BarycentreFilter>,
+    query: &mut Query<(&mut Orbiter, &mut Transform), OrbiterFilter>,
+) where
+    BarycentreFilter: bevy::ecs::query::QueryFilter,
+    OrbiterFilter: bevy::ecs::query::QueryFilter,
+{
+    for (mut orbiter, mut transform) in query.iter_mut() {
+        if let Ok(barycentre) = barycentres.get(orbiter.barycentre_target) {
+            let barycentre_position = barycentre.translation.xy();
 
-    if !orbit_runner.paused {
-        for (mut orbiter, mut transform) in query.iter_mut() {
-
-            let mut barycentre = vec3(0.0, 0.0, 0.0);
-
-            if let Ok(barycenter_transform) = targets.get(orbiter.barycentre_target){
-                barycentre.x = barycenter_transform.translation().x;
-                barycentre.y = barycenter_transform.translation().y;
-            }
-            
-            orbiter.polar_position += orbiter.polar_speed * simulated_time_delta_secs;
-            if orbiter.polar_position > TAU {
-                orbiter.polar_position %= TAU
-            }
-            let relative_x: f32 = (orbiter.radius * orbiter.polar_position.cos()).into();
-            let relative_y: f32 = (orbiter.radius * orbiter.polar_position.sin()).into();
-
-            transform.translation.x = barycentre.x + relative_x;
-            transform.translation.y = barycentre.y + relative_y;
+            orbiter.polar_position = (orbiter.polar_position + orbiter.polar_speed * simulated_delta_time) % TAU;
+            let radius: f32 = orbiter.radius.into();
+            transform.translation.x = barycentre_position.x + radius * orbiter.polar_position.cos();
+            transform.translation.y = barycentre_position.y + radius * orbiter.polar_position.sin();
         }
     }
+}
+
+pub(super) fn move_primary_orbiters(
+    time: Res<Time>,
+    orbit_runner: Res<OrbitRunner>,
+    barycentres: Query<&Transform, Without<Orbiter>>,
+    mut query: Query<(&mut Orbiter, &mut Transform), (With<CelestialBody>, Without<SatelliteBody>)>,
+) {
+    if orbit_runner.paused { return; }
+    tick_orbiters(time.delta_secs() * orbit_runner.timestep, &barycentres, &mut query);
+}
+
+pub(super) fn move_sub_orbiters(
+    time: Res<Time>,
+    orbit_runner: Res<OrbitRunner>,
+    barycentres: Query<&Transform, (With<CelestialBody>, Without<SatelliteBody>)>,
+    mut query: Query<(&mut Orbiter, &mut Transform), With<SatelliteBody>>,
+) {
+    if orbit_runner.paused { return; }
+    tick_orbiters(time.delta_secs() * orbit_runner.timestep, &barycentres, &mut query);
 }

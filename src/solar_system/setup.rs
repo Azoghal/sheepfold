@@ -35,7 +35,7 @@ use crate::{
 
 use super::components::{
     BaseColor, CelestialBody, DebugUI, ForPlanet, Name, OrbitEllipse, Orbiter, PlanetClicked,
-    PlanetHUD, PlanetIndicator, TooltipText,
+    PlanetHUD, PlanetIndicator, SatelliteBody, TooltipText,
 };
 use super::resources::CameraController;
 
@@ -167,6 +167,7 @@ fn add_all_satellites(
             orbit_materials,
             planet,
             star_id,
+            false,
         );
     }
 }
@@ -180,7 +181,7 @@ fn spawn_orbit(
 ) {
     let safe_size = ellipse.semi_major * 2.2;
     let material = orbit_materials.add(OrbitMaterial {
-        center: ellipse.center,
+        centre: ellipse.centre,
         semi_major: ellipse.semi_major,
         semi_minor: ellipse.semi_minor,
         rotation: ellipse.rotation,
@@ -190,7 +191,7 @@ fn spawn_orbit(
     });
     commands.spawn((
         DespawnOnExit(AppState::Simulator),
-        Transform::from_translation(ellipse.center.extend(-0.1)),
+        Transform::from_translation(ellipse.centre.extend(-0.1)),
         Mesh2d(meshes.add(Rectangle::new(safe_size, safe_size))),
         MeshMaterial2d(material),
         ellipse,
@@ -203,35 +204,37 @@ fn spawn_satellite(
     materials: &mut ResMut<Assets<ColorMaterial>>,
     orbit_materials: &mut ResMut<Assets<OrbitMaterial>>,
     planet: SatelliteSpec,
-    system_barycenter: Entity,
+    system_barycentre: Entity,
+    is_sub_satellite: bool,
 ) {
     let polar_speed = TAU / planet.orbit_period;
     println!("{0}:{1}", planet.name, polar_speed);
 
-    let planet_id = commands
-        .spawn((
-            DespawnOnExit(AppState::Simulator),
-            CelestialBody,
-            Name(planet.name.to_string()),
-            Orbiter {
-                barycentre_target: system_barycenter,
-                radius: planet.orbit_radius,
-                polar_speed,
-                polar_position: 0.0,
-            },
-            Mesh2d(meshes.add(Circle::new(planet.radius.into()))),
-            MeshMaterial2d(materials.add(planet.colour)),
-            Transform::from_xyz(0.0, 0.0, 0.0), // all body locations sorted out in
-            // update.
-        ))
-        .id();
+    let mut entity_cmd = commands.spawn((
+        DespawnOnExit(AppState::Simulator),
+        CelestialBody,
+        Name(planet.name.to_string()),
+        Orbiter {
+            barycentre_target: system_barycentre,
+            radius: planet.orbit_radius,
+            polar_speed,
+            polar_position: 0.0,
+        },
+        Mesh2d(meshes.add(Circle::new(planet.radius.into()))),
+        MeshMaterial2d(materials.add(planet.colour)),
+        Transform::from_xyz(0.0, 0.0, 0.0), // all body locations sorted out in update.
+    ));
+    if is_sub_satellite {
+        entity_cmd.insert(SatelliteBody);
+    }
+    let planet_id = entity_cmd.id();
 
     spawn_orbit(
         commands,
         meshes,
         orbit_materials,
         OrbitEllipse {
-            center: Vec2::ZERO,
+            centre: Vec2::ZERO,
             semi_major: planet.orbit_radius.into(),
             semi_minor: planet.orbit_radius.into(),
             rotation: 0.0,
@@ -250,6 +253,7 @@ fn spawn_satellite(
                 orbit_materials,
                 satellite,
                 planet_id,
+                true,
             );
         }
     }
