@@ -3,7 +3,6 @@
 <!--toc:start-->
 - [Sheepfold](#sheepfold)
   - [Motivation](#motivation)
-    - [AI excuse](#ai-excuse)
 <!--toc:end-->
 
 Sheepfold is a solar system simulator written in Rust using the
@@ -15,16 +14,20 @@ A few different things that I've been wanting do do, or do more of:
 
 - Writing more Rust
 - Making "games" again
-- Practicing some maths, using orbital mechanics as an excuse
+- Practising some maths, using orbital mechanics as an excuse
 
-### AI excuse
+## Setup
 
-I also wanted to try using coding agents like Claude Code out side of a work
-environment. My main use case for it has been to assist with refactors and
-tidying up the code. I've also used it a bit to validate that appraoches I'm
-taking are idiomatic or at least not completely bizarre, so as to get more
-familiar with Bevy and its ECS.
+You'll need the following OS dependencies for Bevy:
 
-I won't be using AI generated code at all for some sections of the project,
-such as the implementation of the orbital mechanics calculations (when I get
-there!).
+```
+sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
+
+sudo apt-get install libwayland-dev libxkbcommon-dev
+```
+
+And for faster linking:
+
+```
+sudo apt-get install lld
+```
